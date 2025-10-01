@@ -1,0 +1,83 @@
+{
+  "note": "Edit each folders[*].target_table if needed. Drop Excel files into the matching inbound/<folder> before running --upload.",
+  "db": {
+    "driver": "ODBC Driver 17 for SQL Server",
+    "server": "NYPCSQL01",
+    "database": "DataCleanup",
+    "trusted_connection": true,
+    "username": "",
+    "password": ""
+  },
+  "folders": [
+    {
+      "script": "",
+      "folder": "inbound/ActiveInsurance",
+      "target_table": "DataCleanup.dbo.ActiveInsurance",
+      "file_patterns": ["*.xlsx","*.xls"],
+      "truncate_before_load": true
+    },
+    {
+      "script": "",
+      "folder": "inbound/AriaData",
+      "target_table": "DataCleanup.dbo.AriaData",
+      "file_patterns": ["*.xlsx","*.xls"],
+      "truncate_before_load": true
+    },
+    {
+      "script": "",
+      "folder": "inbound/AtRisk",
+      "target_table": "DataCleanup.dbo.AtRisk",
+      "file_patterns": ["*.xlsx","*.xls"],
+      "truncate_before_load": true
+    },
+    {
+      "script": "",
+      "folder": "inbound/Fractions",
+      "target_table": "DataCleanup.dbo.Fractions",
+      "file_patterns": ["*.xlsx","*.xls"],
+      "truncate_before_load": true
+    },
+    {
+      "script": "",
+      "folder": "inbound/ICD_Crosswalk",
+      "target_table": "DataCleanup.dbo.ICD_Crosswalk",
+      "file_patterns": ["*.xlsx","*.xls"],
+      "truncate_before_load": true
+    },
+    {
+      "script": "",
+      "folder": "inbound/PatientDOB",
+      "target_table": "DataCleanup.dbo.PatientDOB",
+      "file_patterns": ["*.xlsx","*.xls"],
+      "truncate_before_load": true
+    },
+    {
+      "script": "",
+      "folder": "inbound/PayerCrosswalk",
+      "target_table": "DataCleanup.dbo.[Payer Crosswalk]",
+      "file_patterns": ["*.xlsx","*.xls"],
+      "truncate_before_load": true
+    },
+    {
+      "script": "",
+      "folder": "inbound/ReferralRaw",
+      "target_table": "DataCleanup.dbo.ReferralRaw",
+      "file_patterns": ["*.xlsx","*.xls"],
+      "truncate_before_load": true
+    },
+    {
+      "script": "",
+      "folder": "inbound/ResearchPateint",
+      "target_table": "DataCleanup.dbo.ResearchPateint",
+      "file_patterns": ["*.xlsx","*.xls"],
+      "truncate_before_load": true
+    },
+    {
+      "script": "",
+      "folder": "inbound/TransactionsRaw",
+      "target_table": "DataCleanup.dbo.TransactionsRaw",
+      "file_patterns": ["*.xlsx","*.xls"],
+      "truncate_before_load": false
+    }
+  ]
+}
