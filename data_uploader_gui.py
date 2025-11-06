@@ -50,11 +50,14 @@ class DataUploaderGUI:
         self.config_path = Path(__file__).parent / 'config.json'
         self.config = self.load_config()
         
+        # Initialize logging widget first
+        self.create_logs_tab()
+        
         # Threading for long operations
         self.operation_queue = queue.Queue()
         self.check_queue()
         
-        # Create the interface
+        # Create the rest of the interface
         self.create_widgets()
         self.load_config_to_ui()
         
@@ -88,11 +91,12 @@ class DataUploaderGUI:
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill='both', expand=True, padx=10, pady=10)
         
-        # Create tabs
+        # Create tabs (logs tab is already created in __init__)
         self.create_connection_tab()
         self.create_upload_tab()
         self.create_sql_tab()
-        self.create_logs_tab()
+        # Add the logs tab to the notebook
+        self.notebook.add(self.logs_frame, text="Logs & Status")
         
     def create_connection_tab(self):
         """Create database connection configuration tab"""
@@ -131,22 +135,26 @@ class DataUploaderGUI:
         # Authentication frame
         auth_frame = ttk.LabelFrame(self.conn_frame, text="Authentication", padding=10)
         auth_frame.pack(fill='x', padx=10, pady=5)
+
+        # Create inner frame for grid layout
+        auth_grid = ttk.Frame(auth_frame)
+        auth_grid.pack(fill='x', padx=5, pady=5)
         
         # Trusted connection checkbox
         self.trusted_var = tk.BooleanVar()
-        ttk.Checkbutton(auth_frame, text="Use Windows Authentication (Trusted Connection)", 
-                       variable=self.trusted_var, command=self.toggle_auth).pack(anchor='w', pady=5)
+        ttk.Checkbutton(auth_grid, text="Use Windows Authentication (Trusted Connection)", 
+                       variable=self.trusted_var, command=self.toggle_auth).grid(row=0, column=0, columnspan=2, sticky='w', pady=5)
         
         # Username/Password (initially disabled)
         self.username_var = tk.StringVar()
         self.password_var = tk.StringVar()
         
-        ttk.Label(auth_frame, text="Username:").grid(row=1, column=0, sticky='w', padx=5, pady=5)
-        self.username_entry = ttk.Entry(auth_frame, textvariable=self.username_var, width=30, state='disabled')
+        ttk.Label(auth_grid, text="Username:").grid(row=1, column=0, sticky='w', padx=5, pady=5)
+        self.username_entry = ttk.Entry(auth_grid, textvariable=self.username_var, width=30, state='disabled')
         self.username_entry.grid(row=1, column=1, padx=5, pady=5)
         
-        ttk.Label(auth_frame, text="Password:").grid(row=2, column=0, sticky='w', padx=5, pady=5)
-        self.password_entry = ttk.Entry(auth_frame, textvariable=self.password_var, width=30, 
+        ttk.Label(auth_grid, text="Password:").grid(row=2, column=0, sticky='w', padx=5, pady=5)
+        self.password_entry = ttk.Entry(auth_grid, textvariable=self.password_var, width=30, 
                                       show='*', state='disabled')
         self.password_entry.grid(row=2, column=1, padx=5, pady=5)
         
@@ -274,8 +282,7 @@ class DataUploaderGUI:
         
     def create_logs_tab(self):
         """Create logging and status tab"""
-        self.logs_frame = ttk.Frame(self.notebook)
-        self.notebook.add(self.logs_frame, text="Logs & Status")
+        self.logs_frame = ttk.Frame(self.notebook if hasattr(self, 'notebook') else self.root)
         
         ttk.Label(self.logs_frame, text="Operation Logs", 
                  font=('Arial', 14, 'bold')).pack(pady=10)
@@ -572,9 +579,14 @@ class DataUploaderGUI:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_entry = f"[{timestamp}] {message}\n"
         
-        self.log_text.insert(tk.END, log_entry)
-        self.log_text.see(tk.END)
-        self.root.update_idletasks()
+        # Check if log_text widget exists and insert message
+        if hasattr(self, 'log_text'):
+            self.log_text.insert(tk.END, log_entry)
+            self.log_text.see(tk.END)
+            self.root.update_idletasks()
+        else:
+            # Fallback to print if widget not ready
+            print(log_entry, end='')
     
     def clear_logs(self):
         """Clear the log text area"""
