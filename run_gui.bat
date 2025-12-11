@@ -12,7 +12,7 @@ if errorlevel 1 (
 )
 
 REM Check if requirements are installed
-python -c "import pandas, pyodbc, openpyxl" >nul 2>&1
+python -c "import pandas, pyodbc, openpyxl, tkinterdnd2" >nul 2>&1
 if errorlevel 1 (
     echo Installing required dependencies...
     pip install -r requirements.txt

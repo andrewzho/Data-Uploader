@@ -73,7 +73,7 @@ def write_template_config(sql_files, folders, path: Path):
             "folder": fd,
             "target_table": None,
             "file_patterns": ["*.xlsx", "*.xls"],
-            "truncate_before_load": False
+            "upload_mode": "append"  # options: 'append', 'delete'
         })
     with open(path, 'w', encoding='utf-8') as fh:
         json.dump(cfg, fh, indent=2)
@@ -175,14 +175,37 @@ def split_sql_batches(sql_text: str):
     return [b.strip() for b in batches if b.strip()]
 
 
-def upload_df_to_table(conn, df, table, truncate=False):
+def upload_df_to_table(conn, df, table, upload_mode='append'):
+    """
+    Upload DataFrame to SQL Server table.
+    
+    upload_mode options:
+    - 'append': Add data without clearing existing data
+    - 'delete': Delete all existing data, then insert new data (uses DELETE instead of TRUNCATE)
+    """
     cursor = conn.cursor()
     cols = list(df.columns)
     if not cols:
         print('No columns found in file, skipping upload to', table)
         return
-    if truncate:
-        cursor.execute(f"TRUNCATE TABLE {table}")
+    
+    # Handle table clearing based on upload_mode
+    if upload_mode == 'delete':
+        try:
+            # DELETE is slower but works with foreign keys (can be rolled back)
+            cursor.execute(f"DELETE FROM {table}")
+        except Exception as e:
+            print(f"Warning: Could not delete table data: {e}")
+    elif upload_mode == 'truncate':
+        # Legacy support for 'truncate' mode
+        try:
+            cursor.execute(f"TRUNCATE TABLE {table}")
+        except Exception as e:
+            # Fallback to DELETE if TRUNCATE fails (e.g., due to foreign keys)
+            print(f"TRUNCATE failed, attempting DELETE: {e}")
+            cursor.execute(f"DELETE FROM {table}")
+    # 'append' mode does not clear the table
+    
     placeholders = ", ".join("?" for _ in cols)
     col_list = ", ".join(f"[{c}]" for c in cols)
     sql = f"INSERT INTO {table} ({col_list}) VALUES ({placeholders})"
@@ -396,9 +419,13 @@ def upload_from_folders(cfg_path: Path):
             if not prepared_files:
                 print(f"No valid files found in {folder}")
                 continue
+            
+            # Determine upload mode from config
+            upload_mode = entry.get('upload_mode', 'append')  # default to append for backward compatibility
+            
             for orig_path, df in prepared_files:
-                print(f"Uploading {orig_path} -> {ttable}")
-                upload_df_to_table(conn, df, ttable, truncate=entry.get('truncate_before_load', False))
+                print(f"Uploading {orig_path} -> {ttable} (mode: {upload_mode})")
+                upload_df_to_table(conn, df, ttable, upload_mode=upload_mode)
                 print(f"Uploaded {len(df)} rows from {orig_path.name}")
     finally:
         conn.close()

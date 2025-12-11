@@ -1,5 +1,5 @@
 {
-  "note": "Edit each folders[*].target_table if needed. Drop Excel files into the matching inbound/<folder> before running --upload.",
+  "note": "Edit each folders[*].target_table if needed. Use upload_mode: 'append' (add data) or 'delete' (clear then add). Drag files directly into the GUI to upload.",
   "db": {
     "driver": "ODBC Driver 17 for SQL Server",
     "server": "NYPCSQL01",
@@ -17,7 +17,7 @@
         "*.xlsx",
         "*.xls"
       ],
-      "truncate_before_load": true
+      "upload_mode": "delete"
     },
     {
       "script": "",
@@ -27,7 +27,7 @@
         "*.xlsx",
         "*.xls"
       ],
-      "truncate_before_load": true
+      "upload_mode": "delete"
     },
     {
       "script": "",
@@ -37,7 +37,7 @@
         "*.xlsx",
         "*.xls"
       ],
-      "truncate_before_load": true
+      "upload_mode": "delete"
     },
     {
       "script": "",
@@ -47,7 +47,7 @@
         "*.xlsx",
         "*.xls"
       ],
-      "truncate_before_load": true
+      "upload_mode": "delete"
     },
     {
       "script": "",
@@ -57,7 +57,7 @@
         "*.xlsx",
         "*.xls"
       ],
-      "truncate_before_load": true
+      "upload_mode": "delete"
     },
     {
       "script": "",
@@ -67,7 +67,7 @@
         "*.xlsx",
         "*.xls"
       ],
-      "truncate_before_load": true
+      "upload_mode": "delete"
     },
     {
       "script": "",
@@ -77,7 +77,7 @@
         "*.xlsx",
         "*.xls"
       ],
-      "truncate_before_load": true
+      "upload_mode": "delete"
     },
     {
       "script": "",
@@ -87,7 +87,7 @@
         "*.xlsx",
         "*.xls"
       ],
-      "truncate_before_load": true
+      "upload_mode": "delete"
     },
     {
       "script": "",
@@ -97,7 +97,7 @@
         "*.xlsx",
         "*.xls"
       ],
-      "truncate_before_load": true
+      "upload_mode": "delete"
     },
     {
       "script": "",
@@ -107,7 +107,7 @@
         "*.xlsx",
         "*.xls"
       ],
-      "truncate_before_load": false
+      "upload_mode": "append"
     }
   ]
 }

@@ -4,16 +4,15 @@ A tkinter application for automated data upload and SQL processing.
 
 Features:
 - Database connection management
-- File upload with drag-and-drop
+- Direct file upload with drag-and-drop (automatically categorized)
+- Multiple upload modes: Append, Delete, Reset
 - Error handling and validation
-- Append vs Truncate options
 - SQL script execution
 - Progress tracking and logging
 """
 
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
-import tkinter.dnd as dnd
 import threading
 import queue
 import json
@@ -23,6 +22,13 @@ import shutil
 from pathlib import Path
 import traceback
 from datetime import datetime
+
+# Try to import tkinterdnd2 for drag-and-drop support
+try:
+    from tkinterdnd2 import DND_FILES, DND_TEXT
+    HAS_DND = True
+except ImportError:
+    HAS_DND = False
 
 # Import the existing upload_refresh functionality
 try:
@@ -171,76 +177,61 @@ class DataUploaderGUI:
         self.upload_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.upload_frame, text="File Upload")
         
-        # Upload settings
-        ttk.Label(self.upload_frame, text="File Upload Settings", 
-                 font=('Arial', 14, 'bold')).pack(pady=10)
+        # Title
+        title_frame = ttk.Frame(self.upload_frame)
+        title_frame.pack(fill='x', padx=10, pady=10)
+        ttk.Label(title_frame, text="Table Configuration", 
+                 font=('Arial', 14, 'bold')).pack(anchor='w')
+        ttk.Label(title_frame, text="For each table below, select an upload mode and optionally choose a specific file.", 
+                 font=('Arial', 9), foreground='gray').pack(anchor='w')
         
-        # Table mapping frame
-        mapping_frame = ttk.LabelFrame(self.upload_frame, text="Table Mapping", padding=10)
+        # Table mapping frame - scrollable canvas for dynamic content
+        mapping_frame = ttk.LabelFrame(self.upload_frame, text="Configure Tables", padding=10)
         mapping_frame.pack(fill='both', expand=True, padx=10, pady=5)
         
-        # Create treeview for table mappings
-        columns = ('Folder', 'Target Table', 'File Patterns', 'Truncate Before Load')
-        self.mapping_tree = ttk.Treeview(mapping_frame, columns=columns, show='headings', height=8)
+        # Create canvas with scrollbar for table mappings
+        self.mapping_canvas = tk.Canvas(mapping_frame, bg='white', highlightthickness=0)
+        mapping_scroll = ttk.Scrollbar(mapping_frame, orient='vertical', command=self.mapping_canvas.yview)
+        self.mapping_scrollable_frame = ttk.Frame(self.mapping_canvas)
         
-        for col in columns:
-            self.mapping_tree.heading(col, text=col)
-            self.mapping_tree.column(col, width=150)
+        self.mapping_scrollable_frame.bind(
+            "<Configure>",
+            lambda e: self.mapping_canvas.configure(scrollregion=self.mapping_canvas.bbox("all"))
+        )
         
-        # Scrollbar for treeview
-        tree_scroll = ttk.Scrollbar(mapping_frame, orient='vertical', command=self.mapping_tree.yview)
-        self.mapping_tree.configure(yscrollcommand=tree_scroll.set)
+        self.mapping_canvas.create_window((0, 0), window=self.mapping_scrollable_frame, anchor="nw")
+        self.mapping_canvas.configure(yscrollcommand=mapping_scroll.set)
         
-        self.mapping_tree.pack(side='left', fill='both', expand=True)
-        tree_scroll.pack(side='right', fill='y')
+        # Bind mousewheel scrolling to the canvas
+        self.mapping_canvas.bind("<MouseWheel>", self._on_mousewheel)
+        self.mapping_canvas.bind("<Button-4>", self._on_mousewheel)  # Linux scroll up
+        self.mapping_canvas.bind("<Button-5>", self._on_mousewheel)  # Linux scroll down
+        self.mapping_scrollable_frame.bind("<MouseWheel>", self._on_mousewheel)
+        self.mapping_scrollable_frame.bind("<Button-4>", self._on_mousewheel)
+        self.mapping_scrollable_frame.bind("<Button-5>", self._on_mousewheel)
         
-        # Upload options frame
+        self.mapping_canvas.pack(side='left', fill='both', expand=True)
+        mapping_scroll.pack(side='right', fill='y')
+        
+        # Store mapping data for upload process
+        self.table_configs = {}  # {folder: {'upload_mode': str, 'file': str}}
+        
+        # Error handling options
         options_frame = ttk.LabelFrame(self.upload_frame, text="Upload Options", padding=10)
         options_frame.pack(fill='x', padx=10, pady=5)
         
-        # Global truncate option
-        self.global_truncate_var = tk.BooleanVar()
-        ttk.Checkbutton(options_frame, text="Truncate all tables before upload", 
-                       variable=self.global_truncate_var).pack(anchor='w', pady=5)
-        
-        # Error handling options
         self.stop_on_error_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(options_frame, text="Stop on first error", 
                        variable=self.stop_on_error_var).pack(anchor='w', pady=5)
-        
-        # File selection area with drag-and-drop
-        file_selection_frame = ttk.LabelFrame(self.upload_frame, text="File Selection", padding=10)
-        file_selection_frame.pack(fill='x', padx=10, pady=5)
-        
-        # Drag and drop area
-        self.drop_area = tk.Frame(file_selection_frame, bg='lightblue', height=100, relief='dashed', bd=2)
-        self.drop_area.pack(fill='x', pady=5)
-        self.drop_area.pack_propagate(False)
-        
-        drop_label = tk.Label(self.drop_area, text="Drag and drop Excel files here\nor click 'Select Files' button", 
-                            bg='lightblue', font=('Arial', 10))
-        drop_label.pack(expand=True)
-        
-        # Bind drag and drop events
-        self.drop_area.bind("<Button-1>", self.select_files)
-        drop_label.bind("<Button-1>", self.select_files)
-        
-        # Selected files list
-        self.selected_files_listbox = tk.Listbox(file_selection_frame, height=4)
-        self.selected_files_listbox.pack(fill='x', pady=5)
         
         # Upload buttons
         upload_button_frame = ttk.Frame(self.upload_frame)
         upload_button_frame.pack(fill='x', padx=10, pady=10)
         
-        ttk.Button(upload_button_frame, text="Select Files to Upload", 
-                  command=self.select_files).pack(side='left', padx=5)
-        ttk.Button(upload_button_frame, text="Clear Selected Files", 
-                  command=self.clear_selected_files).pack(side='left', padx=5)
-        ttk.Button(upload_button_frame, text="Start Upload", 
-                  command=self.start_upload).pack(side='left', padx=5)
         ttk.Button(upload_button_frame, text="Refresh Table List", 
                   command=self.refresh_table_list).pack(side='left', padx=5)
+        ttk.Button(upload_button_frame, text="Start Upload", 
+                  command=self.start_upload).pack(side='left', padx=5)
         
     def create_sql_tab(self):
         """Create SQL script execution tab"""
@@ -376,26 +367,124 @@ class DataUploaderGUI:
         threading.Thread(target=test_conn, daemon=True).start()
     
     def refresh_table_list(self):
-        """Refresh the table mapping list"""
+        """Refresh the table mapping list with pretty interactive controls"""
         try:
             # Clear existing items
-            for item in self.mapping_tree.get_children():
-                self.mapping_tree.delete(item)
+            for widget in self.mapping_scrollable_frame.winfo_children():
+                widget.destroy()
             
-            # Load from config
-            for folder_config in self.config.get('folders', []):
+            self.table_configs = {}
+            
+            # Load from config and create interactive rows
+            for idx, folder_config in enumerate(self.config.get('folders', [])):
                 folder = folder_config.get('folder', '')
                 target_table = folder_config.get('target_table', '')
-                file_patterns = ', '.join(folder_config.get('file_patterns', []))
-                truncate = folder_config.get('truncate_before_load', False)
                 
-                self.mapping_tree.insert('', 'end', values=(
-                    folder, target_table, file_patterns, 'Yes' if truncate else 'No'
-                ))
+                # Support both old 'truncate_before_load' and new 'upload_mode' formats
+                upload_mode = folder_config.get('upload_mode')
+                if upload_mode is None:
+                    truncate = folder_config.get('truncate_before_load', False)
+                    upload_mode = 'delete' if truncate else 'append'
+                
+                self.table_configs[folder] = {
+                    'upload_mode': upload_mode,
+                    'file': None,
+                    'target_table': target_table,
+                    'enabled': tk.BooleanVar(value=True)  # New: Track if this table should be uploaded
+                }
+                
+                # Create row frame with alternating background colors
+                bg_color = '#f8f8f8' if idx % 2 == 0 else '#ffffff'
+                row_frame = tk.Frame(self.mapping_scrollable_frame, bg=bg_color, relief='flat', borderwidth=0)
+                row_frame.pack(fill='x', padx=5, pady=3)
+                
+                # Left side: Checkbox and folder info
+                left_frame = tk.Frame(row_frame, bg=bg_color)
+                left_frame.pack(side='left', fill='both', expand=True, padx=8, pady=8)
+                
+                # Checkbox to enable/disable this table
+                checkbox = tk.Checkbutton(left_frame, text="", variable=self.table_configs[folder]['enabled'],
+                                         bg=bg_color, activebackground=bg_color, highlightthickness=0)
+                checkbox.pack(side='left', padx=(0, 8))
+                
+                # Info frame with folder and table names
+                info_frame = tk.Frame(left_frame, bg=bg_color)
+                info_frame.pack(side='left', fill='both', expand=True)
+                
+                # Folder name in bold
+                folder_label = tk.Label(info_frame, text=f"📁 {folder}", 
+                                       font=('Arial', 10, 'bold'), bg=bg_color, fg='#333333')
+                folder_label.pack(anchor='w', pady=(0, 2))
+                
+                # Table name in smaller text
+                table_label = tk.Label(info_frame, text=f"Table: {target_table}", 
+                                      font=('Arial', 8), bg=bg_color, fg='#666666')
+                table_label.pack(anchor='w')
+                
+                # Middle: Upload mode dropdown
+                mode_frame = tk.Frame(row_frame, bg=bg_color)
+                mode_frame.pack(side='left', padx=10, pady=8)
+                
+                mode_label = tk.Label(mode_frame, text="Mode:", font=('Arial', 9, 'bold'), 
+                                     bg=bg_color, fg='#333333')
+                mode_label.pack()
+                
+                mode_var = tk.StringVar(value=upload_mode)
+                mode_dropdown = ttk.Combobox(mode_frame, textvariable=mode_var, 
+                                            values=['append', 'delete'], state='readonly', width=10)
+                mode_dropdown.pack(pady=(2, 0))
+                
+                # Store the variable so we can retrieve it later
+                mode_dropdown.folder = folder
+                mode_dropdown.bind('<<ComboboxSelected>>', 
+                                  lambda e, f=folder, v=mode_var: self._update_upload_mode(f, v.get()))
+                
+                # Right side: File selection button
+                button_frame = tk.Frame(row_frame, bg=bg_color)
+                button_frame.pack(side='right', padx=12, pady=8)
+                
+                file_label_var = tk.StringVar(value="No file")
+                file_status_label = tk.Label(button_frame, textvariable=file_label_var, 
+                                            font=('Arial', 8), bg=bg_color, fg='#999999')
+                file_status_label.pack(pady=(0, 3))
+                
+                def select_file_for_folder(f=folder, label_var=file_label_var):
+                    file = filedialog.askopenfilename(
+                        title=f"Select file for {f}",
+                        filetypes=[("Excel files", "*.xlsx *.xls"), ("All files", "*.*")]
+                    )
+                    if file:
+                        self.table_configs[f]['file'] = file
+                        file_name = Path(file).name
+                        # Show just the filename, truncate if too long
+                        display_name = file_name if len(file_name) <= 20 else file_name[:17] + "..."
+                        label_var.set(display_name)
+                        self.log_message(f"Selected file for {f}: {file_name}")
+                
+                select_btn = tk.Button(button_frame, text="📂 Select File", 
+                                      command=select_file_for_folder,
+                                      bg='#007bff', fg='white', font=('Arial', 8, 'bold'),
+                                      padx=10, pady=4, relief='flat', cursor='hand2',
+                                      activebackground='#0056b3', activeforeground='white')
+                select_btn.pack()
             
             self.log_message("Table mapping list refreshed")
         except Exception as e:
             self.log_message(f"Error refreshing table list: {e}")
+    
+    def _update_upload_mode(self, folder, mode):
+        """Update upload mode for a specific folder"""
+        if folder in self.table_configs:
+            self.table_configs[folder]['upload_mode'] = mode
+            self.log_message(f"Updated upload mode for {folder} to: {mode}")
+    
+    def _on_mousewheel(self, event):
+        """Handle mousewheel scrolling for the canvas"""
+        # Determine scroll direction
+        if event.num == 5 or event.delta < 0:
+            self.mapping_canvas.yview_scroll(1, "units")
+        elif event.num == 4 or event.delta > 0:
+            self.mapping_canvas.yview_scroll(-1, "units")
     
     def refresh_sql_list(self):
         """Refresh the SQL scripts list"""
@@ -419,44 +508,91 @@ class DataUploaderGUI:
         )
         
         if files:
-            self.add_files_to_list(files)
+            self.log_message(f"Selected {len(files)} files")
     
-    def add_files_to_list(self, files):
-        """Add files to the selected files list"""
-        for file_path in files:
-            if file_path not in [self.selected_files_listbox.get(i) for i in range(self.selected_files_listbox.size())]:
-                self.selected_files_listbox.insert(tk.END, file_path)
-        
-        self.log_message(f"Added {len(files)} files to upload queue")
-    
-    def clear_selected_files(self):
-        """Clear the selected files list"""
-        self.selected_files_listbox.delete(0, tk.END)
-        self.log_message("Cleared selected files")
+    def drop_files(self, event):
+        """Handle drag-and-drop files"""
+        try:
+            # Parse the dropped files from the event data
+            files = self.root.tk.splitlist(event.data)
+            
+            # Clean up file paths (remove curly braces)
+            cleaned_files = []
+            for f in files:
+                # Remove curly braces and normalize path
+                clean_path = f.strip('{}')
+                if os.path.isfile(clean_path):
+                    cleaned_files.append(clean_path)
+            
+            if cleaned_files:
+                self.log_message(f"Dropped {len(cleaned_files)} files")
+        except Exception as e:
+            self.log_message(f"Error processing dropped files: {e}")
+            messagebox.showerror("Error", f"Error processing dropped files: {e}")
     
     def get_selected_files(self):
-        """Get list of selected files"""
-        return [self.selected_files_listbox.get(i) for i in range(self.selected_files_listbox.size())]
+        """Get list of selected files from table configs"""
+        selected_files = []
+        for folder, config in self.table_configs.items():
+            if config.get('file'):
+                selected_files.append(config['file'])
+        return selected_files
     
     def start_upload(self):
-        """Start the upload process"""
-        selected_files = self.get_selected_files()
-        if not selected_files:
-            messagebox.showwarning("No Files", "Please select files to upload first.")
-            return
-        
+        """Start the upload process with per-table configurations"""
         def upload_process():
             try:
                 self.status_var.set("Uploading files...")
                 self.progress_var.set(0)
                 self.log_message("Starting upload process...")
                 
-                # Copy selected files to appropriate inbound folders
-                self.copy_files_to_folders(selected_files)
+                base = Path(__file__).parent.resolve()
+                inbound_base = base / 'inbound'
+                inbound_base.mkdir(exist_ok=True)
                 
-                # Update config with global truncate setting
+                # Process files based on per-table selections and upload modes
+                files_uploaded = 0
+                
+                for folder, config in self.table_configs.items():
+                    # Skip if this table is not enabled
+                    if not config['enabled'].get():
+                        self.log_message(f"Skipping {folder} (unchecked)")
+                        continue
+                    
+                    upload_mode = config['upload_mode']
+                    selected_file = config['file']
+                    
+                    # If a specific file was selected for this table, use it
+                    if selected_file and Path(selected_file).exists():
+                        target_folder_path = inbound_base / folder
+                        target_folder_path.mkdir(exist_ok=True)
+                        
+                        file_name = Path(selected_file).name
+                        dest_file = target_folder_path / file_name
+                        
+                        try:
+                            shutil.copy2(selected_file, dest_file)
+                            self.log_message(f"Copied {file_name} to {folder} with mode: {upload_mode}")
+                            files_uploaded += 1
+                        except Exception as e:
+                            self.log_message(f"Error copying {file_name}: {e}")
+                            if self.stop_on_error_var.get():
+                                raise
+                
+                if files_uploaded == 0:
+                    self.log_message("No files selected for upload. Please select a file for at least one enabled table.")
+                    self.status_var.set("No files selected")
+                    return
+                
+                # Update config with per-folder upload modes
                 for folder_config in self.config.get('folders', []):
-                    folder_config['truncate_before_load'] = self.global_truncate_var.get()
+                    folder = folder_config.get('folder', '')
+                    if folder in self.table_configs:
+                        # Clean up old format
+                        if 'truncate_before_load' in folder_config:
+                            del folder_config['truncate_before_load']
+                        # Update with current mode
+                        folder_config['upload_mode'] = self.table_configs[folder]['upload_mode']
                 
                 # Save updated config
                 with open(self.config_path, 'w', encoding='utf-8') as f:
@@ -464,6 +600,7 @@ class DataUploaderGUI:
                 
                 # Run upload
                 self.progress_var.set(50)
+                self.log_message(f"Running database upload for {files_uploaded} file(s)...")
                 upload_from_folders(self.config_path)
                 
                 self.progress_var.set(100)
@@ -477,41 +614,6 @@ class DataUploaderGUI:
                 self.operation_queue.put(("error", f"Upload failed: {e}"))
         
         threading.Thread(target=upload_process, daemon=True).start()
-    
-    def copy_files_to_folders(self, files):
-        """Copy files to appropriate inbound folders based on filename patterns"""
-        base = Path(__file__).parent.resolve()
-        inbound_base = base / 'inbound'
-        
-        # Create inbound directory if it doesn't exist
-        inbound_base.mkdir(exist_ok=True)
-        
-        for file_path in files:
-            try:
-                file_name = Path(file_path).name
-                self.log_message(f"Processing file: {file_name}")
-                
-                # Try to match file to appropriate folder based on name patterns
-                target_folder = self.find_matching_folder(file_name)
-                
-                if target_folder:
-                    # Copy file to target folder
-                    target_path = inbound_base / target_folder
-                    target_path.mkdir(exist_ok=True)
-                    
-                    dest_file = target_path / file_name
-                    shutil.copy2(file_path, dest_file)
-                    self.log_message(f"Copied {file_name} to {target_folder}")
-                else:
-                    # If no specific match, copy to a general folder
-                    general_folder = inbound_base / "General"
-                    general_folder.mkdir(exist_ok=True)
-                    dest_file = general_folder / file_name
-                    shutil.copy2(file_path, dest_file)
-                    self.log_message(f"Copied {file_name} to General folder (no specific match found)")
-                    
-            except Exception as e:
-                self.log_message(f"Error processing {file_path}: {e}")
     
     def find_matching_folder(self, filename):
         """Find the appropriate folder for a file based on filename patterns"""
@@ -534,7 +636,6 @@ class DataUploaderGUI:
         for folder_name, keywords in patterns.items():
             if any(keyword in filename_lower for keyword in keywords):
                 return folder_name
-        
         return None
     
     def run_selected_sql(self):
