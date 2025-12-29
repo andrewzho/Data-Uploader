@@ -250,15 +250,35 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
     col_list = ", ".join(f"[{c}]" for c in cols)
     sql = f"INSERT INTO {table} ({col_list}) VALUES ({placeholders})"
     
+    # Build a map of column max lengths from table metadata if available
+    col_max_lengths = {}
+    if table_cols:
+        for col_name, sql_type, max_length in table_cols:
+            # Extract max length from SQL type (e.g., "NVARCHAR(255)" -> 255)
+            if max_length and max_length > 0:
+                col_max_lengths[col_name] = max_length
+            elif 'VARCHAR' in sql_type.upper() or 'NVARCHAR' in sql_type.upper():
+                # Try to extract from type string if max_length not provided
+                match = re.search(r'\((\d+)\)', sql_type)
+                if match:
+                    col_max_lengths[col_name] = int(match.group(1))
+    
     # Convert DataFrame to list of tuples, converting pandas NA/NaN to None for SQL Server
     data = []
     for _, row in df.iterrows():
         row_data = []
-        for val in row:
+        for i, val in enumerate(row):
+            col_name = cols[i]
             # Handle pandas NA (from nullable dtypes like Int64, boolean, string)
             if pd.isna(val):
                 row_data.append(None)
             else:
+                # Truncate string values if they exceed column max length
+                if isinstance(val, str) and col_name in col_max_lengths:
+                    max_len = col_max_lengths[col_name]
+                    if len(val) > max_len:
+                        val = val[:max_len]
+                        print(f"Warning: Truncated '{col_name}' value (length {len(val)} > {max_len})")
                 row_data.append(val)
         data.append(tuple(row_data))
     

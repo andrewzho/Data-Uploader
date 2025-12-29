@@ -489,7 +489,7 @@ CREATE TABLE DataCleanup.dbo.Ref (
     [Sim Date] DATETIME,
     [1st Treatment] DATETIME,
     [Final Treatment] DATETIME,
-    [Comment] VARCHAR(255),
+    [Comment] NVARCHAR(MAX),
     [On-Hold] BIT,
     [FBR] BIT,
     [Consult Date] DATETIME,
