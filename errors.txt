@@ -1,8 +1,4 @@
-It seems like the strucure for the fractions table has changed. Can we recreate that table using this kind of setup?
-ICD 10	Activity Name	Due Date	Start Date	Duration	Note	Status	Prim. Oncologist	Diagnosis	Staff/Resource(s)	Patient Name	Patient ID1	Created By	Check-In	Questionnaire	Priority	Checklist
-
-
-This was the old table and the error I got on upload. Create a script and tell me how to execue it on the client's computer
+Note: Auto-mapping Excel column 'Prim. Oncologist' to expected 'Prim# Oncologist'
 
 ===== UPLOAD ERROR =====
 Table: [DataCleanup].[dbo].[Fractions]
@@ -25,13 +21,6 @@ Expected columns from SQL Server table:
   [Questionnaire] nvarchar
   [Priority] nvarchar
   [Checklist] nvarchar
-  [F1] nvarchar
-  [descr] nvarchar
-  [Cancer Flag] nvarchar
-  [ICD_High_level_Category] nvarchar
-  [ICD_Second_Level] nvarchar
-  [ICD_Detailed] nvarchar
-  [Start Date Only] date
 
 Columns in DataFrame:
   ICD 10
@@ -51,18 +40,17 @@ Columns in DataFrame:
   Questionnaire
   Priority
   Checklist
-  F1
-  descr
-  Cancer Flag
-  ICD_High_level_Category
-  ICD_Second_Level
-  ICD_Detailed
-  Start Date Only
 
 First few rows of data:
-  Row 0: ('D05.91', 'New Start Daily Treatment', None, Timestamp('2019-08-01 07:30:00'), '30', None, 'Open', 'Brian Yeh, MD', '6/24/2019, D05.91, Unspecified type of carcinoma in situ of right breast', 'GTR3', 'zz_Breast, zz_Test plan9 (zz45785612)', 'zz45785612', 'Christopher Ackerman', True, None, 'Medium', None, None, None, None, None, None, None, None)
-  Row 1: ('C34.12', 'New Start Daily Treatment', None, Timestamp('2019-08-01 08:00:00'), '30', None, 'Open', 'Nancy Lee, MD', '6/9/2019, C34.12, Malignant neoplasm of upper lobe, left bronchus or lung', 'GTR3', 'zz_Lung, zz_Test plan2 (zz98763617)', 'zz98763617', 'Christopher Ackerman', False, None, 'Medium', None, None, None, None, None, None, None, None)
-  Row 2: ('C61', 'New Start Daily Treatment', None, Timestamp('2019-08-01 08:30:00'), '30', None, 'Completed', 'Madhur Garg, MD', '6/9/2019, C61, Malignant neoplasm of prostate', 'GTR3', 'zz_Prostate, zz_Test plan7 (zz63409256)', 'zz63409256', 'Christopher Ackerman', True, None, 'Medium', None, None, None, None, None, None, None, None)
+  Row 0: ('D05.91', 'New Start Daily Treatment', None, Timestamp('2019-08-01 07:30:00'), '30', None, 'Open', 'Brian Yeh, MD', '6/24/2019, D05.91, Unspecified type of carcinoma in situ of right breast', 'GTR3', 'zz_Breast, zz_Test plan9 (zz45785612)', 'zz45785612', 'Christopher Ackerman', True, None, 'Medium', None)
+  Row 1: ('C34.12', 'New Start Daily Treatment', None, Timestamp('2019-08-01 08:00:00'), '30', None, 'Open', 'Nancy Lee, MD', '6/9/2019, C34.12, Malignant neoplasm of upper lobe, left bronchus or lung', 'GTR3', 'zz_Lung, zz_Test plan2 (zz98763617)', 'zz98763617', 'Christopher Ackerman', False, None, 'Medium', None)
+  Row 2: ('C61', 'New Start Daily Treatment', None, Timestamp('2019-08-01 08:30:00'), '30', None, 'Completed', 'Madhur Garg, MD', '6/9/2019, C61, Malignant neoplasm of prostate', 'GTR3', 'zz_Prostate, zz_Test plan7 (zz63409256)', 'zz63409256', 'Christopher Ackerman', True, None, 'Medium', None)
 
 SQL Error:
 ========================
+
+Exception in Tkinter callback
+Traceback (most recent call last):
+  File "C:\Users\aho\AppData\Local\Programs\Python\Python38-32\lib\tkinter\__init__.py", line 1880, in __call__
+    try:
+KeyboardInterrupt
