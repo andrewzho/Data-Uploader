@@ -1,2 +1,2 @@
-SQL execution failed: ('42000', '[42000] [Microsoft][ODBC Driver 17 for SQL Server][SQL Serverjlncorrect syntax near (102) (SQLExecDirectW)')
+SQL execution failed: ('42000', '[42000] [Microsoftj[ODBC Driver 17 for SQL Server][SQL Serverjlncorrect syntax near Fraction ID'. (102] (SQLExecDirectW)')
 
