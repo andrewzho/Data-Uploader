@@ -1,4 +1,31 @@
--- Add the RemainingBalance column to the Ref table if it doesn't already exist
+/*
+================================================================================
+SCRIPT 3: Calculate Outstanding Balances for Each Referral Period
+================================================================================
+
+PURPOSE:
+  This script associates transaction balances with referral records by:
+  - Matching each referral to transactions within its period
+  - Calculating the total outstanding balance per referral
+  - Storing the result in the Ref table
+
+EXECUTION ORDER:
+  - Run after Scripts 1-2
+  - Run before Scripts 4-5
+
+KEY CONCEPT:
+  Each patient may have multiple referrals over time. For each referral,
+  we sum up all financial balances from transactions that occurred:
+  - On or after the referral date (FromDOS >= Referral Date)
+  - Before the next referral's date (or indefinitely if no next referral)
+  
+  This shows the outstanding financial obligations for each clinical episode.
+
+================================================================================
+*/
+
+-- Step 1: Initialize the RemainingBalance column in Ref table
+--         This column will hold the total balance for each referral period
 ALTER TABLE [DataCleanup].[dbo].[Ref]
 DROP COLUMN RemainingBalance;
 GO
@@ -7,8 +34,10 @@ ALTER TABLE [DataCleanup].[dbo].[Ref]
 ADD RemainingBalance MONEY;
 GO
 
--- Create a CTE to assign a row number to each referral for the same patient based on the Referral Date
--- Gets the Patient ID and Referral Date an orders by Referral Date.
+-- Step 2: Create a Common Table Expression (CTE) to number referrals per patient
+--         This allows us to identify which referral comes first, second, etc.
+--         for each patient
+-- IMPORTANT: This ordering is based on Referral Date
 WITH NumberedReferrals AS (
     SELECT
         rs.[Patient ID],
@@ -18,9 +47,14 @@ WITH NumberedReferrals AS (
         [DataCleanup].[dbo].[Ref] rs
 )
 
--- Calculate the remaining balance for each referral period considering the referral date
--- Creates a new table by doing a Left Join on DailyTransactions and NumberedReferals. 
--- Creates a new Column of the sum of the remaining balances from Transactions
+-- Step 3: Calculate the total remaining balance for each referral
+--         Logic:
+--           1. For each referral, find all transactions where:
+--              - The Patient ID matches (rs.[Patient ID] = dt.[PatientNumberUpdated])
+--              - The transaction date is ON or AFTER the referral date
+--              - The transaction date is BEFORE the next referral (or indefinitely)
+--           2. Sum the RemainingBalance from all matching transactions
+--           3. Use ISNULL to return 0 if no transactions are found
 , CalculatedBalances AS (
     SELECT
         nr.[Patient ID],
@@ -37,19 +71,21 @@ WITH NumberedReferrals AS (
         dt.[FromDOS] >= nr.[Referral Date]
     AND 
         dt.[FromDOS] < ISNULL(
+            -- Subquery: Find the date of the NEXT referral for this patient
+            -- If there is no next referral, use '9999-12-31' (a distant future date)
             (SELECT MIN(nr2.[Referral Date])
              FROM NumberedReferrals nr2
              WHERE nr2.[Patient ID] = nr.[Patient ID]
              AND nr2.[ReferralOrder] > nr.[ReferralOrder]), 
-             '9999-12-31') -- Use a distant future date as the default end date
+             '9999-12-31')
     GROUP BY
         nr.[Patient ID],
         nr.[Referral Date],
         nr.[ReferralOrder]
 )
 
--- Update the Ref table with the calculated remaining balances
--- Uses the values from Calculated Balances and stores inot RemainingBalance in Referral.
+-- Step 4: Update the Ref table with calculated balances
+--         Match each referral record to its calculated balance and store the result
 UPDATE rs
 SET rs.RemainingBalance = cb.TotalRemainingBalance
 FROM 
@@ -61,3 +97,6 @@ ON
 AND 
     rs.[Referral Date] = cb.[Referral Date];
 GO
+
+-- End of Script 3
+-- Next: Run "4 - Primary Secondary Insurance-NYPC-L1484.sql"

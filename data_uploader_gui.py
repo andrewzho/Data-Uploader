@@ -230,6 +230,8 @@ class DataUploaderGUI:
         
         ttk.Button(upload_button_frame, text="Refresh Table List", 
                   command=self.refresh_table_list).pack(side='left', padx=5)
+        ttk.Button(upload_button_frame, text="Validate & Fix Files", 
+                  command=self.validate_and_fix_selected_files).pack(side='left', padx=5)
         ttk.Button(upload_button_frame, text="Start Upload", 
                   command=self.start_upload).pack(side='left', padx=5)
         
@@ -479,13 +481,14 @@ class DataUploaderGUI:
             self.log_message(f"Updated upload mode for {folder} to: {mode}")
     
     def _on_mousewheel(self, event):
-        """Handle mousewheel scrolling for the canvas"""
-        # Determine scroll direction
+        """Handle mousewheel scrolling on canvas"""
         if event.num == 5 or event.delta < 0:
             self.mapping_canvas.yview_scroll(1, "units")
         elif event.num == 4 or event.delta > 0:
             self.mapping_canvas.yview_scroll(-1, "units")
     
+    # ==================== UPLOAD METHODS ====================
+
     def refresh_sql_list(self):
         """Refresh the SQL scripts list"""
         try:
@@ -538,6 +541,118 @@ class DataUploaderGUI:
                 selected_files.append(config['file'])
         return selected_files
     
+    def validate_and_fix_selected_files(self):
+        """Validate and optionally fix files selected for upload"""
+        # Get enabled tables with selected files
+        files_to_validate = {}
+        for folder, config in self.table_configs.items():
+            if config['enabled'].get() and config['file']:
+                file_path = config['file']
+                if Path(file_path).exists():
+                    files_to_validate[folder] = file_path
+        
+        if not files_to_validate:
+            messagebox.showwarning("Warning", "No files selected for validation.\nPlease select files for enabled tables first.")
+            return
+        
+        def validate_process():
+            try:
+                self.log_message(f"Validating {len(files_to_validate)} file(s)...\n")
+                
+                from validate_and_clean_data import validate_file
+                
+                all_valid = True
+                validation_results = {}
+                
+                for folder, file_path in files_to_validate.items():
+                    self.log_message(f"Validating {Path(file_path).name} for {folder}...")
+                    # Use the target_table from config
+                    table_name = self.table_configs[folder]['target_table']
+                    results = validate_file(file_path, table_name)
+                    validation_results[folder] = results
+                    
+                    if results['valid']:
+                        self.log_message(f"  ✓ {Path(file_path).name}: PASSED")
+                    else:
+                        self.log_message(f"  ❌ {Path(file_path).name}: FAILED")
+                        if results['missing_columns']:
+                            self.log_message(f"     Missing: {', '.join(results['missing_columns'][:3])}...")
+                        if results['extra_columns']:
+                            self.log_message(f"     Extra: {', '.join(results['extra_columns'][:3])}...")
+                        all_valid = False
+                
+                self.log_message("\n" + "="*80)
+                
+                if all_valid:
+                    self.log_message("✓ ALL FILES VALIDATED SUCCESSFULLY!")
+                    self.log_message("Files are ready for upload.\n")
+                    messagebox.showinfo("Validation Success", 
+                        f"All {len(files_to_validate)} file(s) validated successfully!\n\nReady for upload.")
+                else:
+                    self.log_message("❌ SOME FILES FAILED VALIDATION")
+                    self.log_message("Click 'Validate & Fix' again to auto-correct issues.\n")
+                    
+                    if messagebox.askyesno("Validation Failed", 
+                        "Some files have issues.\n\nAuto-fix and create cleaned copies?"):
+                        self.fix_selected_files(files_to_validate)
+                
+            except ImportError:
+                self.log_message("Error: validate_and_clean_data module not found")
+                messagebox.showerror("Import Error", 
+                    "validate_and_clean_data.py not found in the same directory")
+            except Exception as e:
+                self.log_message(f"Validation error: {e}")
+                messagebox.showerror("Error", f"Validation failed: {e}")
+        
+        threading.Thread(target=validate_process, daemon=True).start()
+    
+    def fix_selected_files(self, files_to_validate):
+        """Auto-fix validation issues in selected files"""
+        def fix_process():
+            try:
+                from validate_and_clean_data import clean_and_save
+                
+                fixed_files = []
+                failed_files = []
+                
+                for folder, file_path in files_to_validate.items():
+                    output_path = str(Path(file_path).parent / f"{Path(file_path).stem}_cleaned.xlsx")
+                    
+                    self.log_message(f"Fixing {Path(file_path).name}...")
+                    
+                    try:
+                        # Use the target_table from config
+                        table_name = self.table_configs[folder]['target_table']
+                        if clean_and_save(file_path, table_name, output_path):
+                            fixed_files.append(output_path)
+                            self.log_message(f"  ✓ Fixed: {output_path}")
+                            # Update the file reference to the cleaned file
+                            self.table_configs[folder]['file'] = output_path
+                        else:
+                            failed_files.append(file_path)
+                            self.log_message(f"  ❌ Could not fix: {file_path}")
+                    except Exception as e:
+                        failed_files.append(file_path)
+                        self.log_message(f"  ❌ Error fixing {Path(file_path).name}: {e}")
+                
+                self.log_message("\n" + "="*80)
+                
+                if fixed_files:
+                    self.log_message(f"✓ Fixed {len(fixed_files)} file(s)")
+                    self.log_message("Updated file references to cleaned versions.")
+                    self.log_message("Ready for upload!\n")
+                    messagebox.showinfo("Files Fixed", 
+                        f"Successfully fixed {len(fixed_files)} file(s)!\n\nUpdated references point to cleaned files.\nReady for upload.")
+                
+                if failed_files:
+                    self.log_message(f"❌ Could not fix {len(failed_files)} file(s)\n")
+                
+            except Exception as e:
+                self.log_message(f"Fix error: {e}")
+                messagebox.showerror("Error", f"Fix process failed: {e}")
+        
+        threading.Thread(target=fix_process, daemon=True).start()
+
     def start_upload(self):
         """Start the upload process with per-table configurations"""
         def upload_process():
@@ -564,7 +679,9 @@ class DataUploaderGUI:
                     
                     # If a specific file was selected for this table, use it
                     if selected_file and Path(selected_file).exists():
-                        target_folder_path = inbound_base / folder
+                        # Extract just the folder name from the path (e.g., "ActiveInsurance" from "inbound/ActiveInsurance")
+                        folder_name = Path(folder).name
+                        target_folder_path = inbound_base / folder_name
                         target_folder_path.mkdir(exist_ok=True)
                         
                         file_name = Path(selected_file).name

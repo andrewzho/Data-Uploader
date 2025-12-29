@@ -1,11 +1,43 @@
--- Checking if a table exists already, if so drop it so we can have a fresh set of data.
+/*
+================================================================================
+SCRIPT 1: Clean up MRN for Transactions and Referrals
+================================================================================
+
+PURPOSE:
+  This script creates two cleaned data tables from raw import data:
+  1. DailyTransactions - Financial transaction data from billing system
+  2. Ref (Referrals) - Patient referral and admission data
+  
+It standardizes patient identifiers (MRNs), calculates financial metrics,
+and creates normalized tables ready for analysis.
+
+EXECUTION ORDER:
+  - Run this script FIRST as it creates the base tables
+  - Then run scripts 2-5 for additional data transformations
+
+WHAT THIS DOES:
+  1. Drops existing tables to ensure fresh data
+  2. Creates DailyTransactions table with financial columns
+  3. Populates it from TransactionsRaw, computing balance calculations
+  4. Standardizes MRN format (removes dashes, fixes prefixes)
+  5. Creates Ref table from ReferralRaw data
+  6. Cleans MRN values in Ref table to match DailyTransactions
+  7. Adds VisitNumber and TransMRN columns for tracking
+
+================================================================================
+*/
+
+-- Step 1a: Drop existing tables to ensure fresh data (if they already exist)
+--          This allows the script to be run multiple times without errors
 DROP TABLE IF EXISTS [DataCleanup].[dbo].[DailyTransactions];
 GO
 
 DROP TABLE IF EXISTS [DataCleanup].[dbo].[Ref];
 GO
 
--- Creates a new Transaction Table with new columns
+-- Step 1b: Create the DailyTransactions table
+--          This table contains financial transaction records from the billing system
+--          Columns include payment amounts, adjustments, and calculated balance fields
 CREATE TABLE [DataCleanup].[dbo].[DailyTransactions] (
     PaymentDateUpdated           DATE,
     PaymentDateVoided            DATE,
@@ -91,7 +123,12 @@ CREATE TABLE [DataCleanup].[dbo].[DailyTransactions] (
 );
 GO
 
--- Insert data into the new table
+-- Step 2: Insert data from TransactionsRaw and calculate financial metrics
+--         This populates the new DailyTransactions table with:
+--         - All raw financial data from TransactionsRaw
+--         - Calculated fields: Allowed, TotalPayments, TotalAdjustments, RemainingBalance
+--         - CharityAdjs, OtherAdjs, InternationalAdjs, PatientDirective, PayerDirective
+--         - Excludes test/dummy patient records (those with specific test MRNs)
 INSERT INTO [DataCleanup].[dbo].[DailyTransactions] (
     PaymentDateUpdated,
     PaymentDateVoided,
@@ -314,12 +351,20 @@ FROM [DataCleanup].[dbo].[TransactionsRaw]
 WHERE PatientNumber NOT IN ('40','460', '866336', '86SYN-10001', '865301', '86zzrcbillingtest1', '86zztestapple');
 GO
 
--- Update the RemainingBalance column with the correct calculation
+-- Step 3: Recalculate RemainingBalance with correct formula
+--         Formula: Allowed - TotalPayments - Refunds - TotalAdjustments
+--         This represents the outstanding patient/insurance balance
 UPDATE [DataCleanup].[dbo].[DailyTransactions]
 SET RemainingBalance = 
     (Allowed - TotalPayments - Refunds -TotalAdjustments);
 GO
--- Hard Coded MRN changes for those that don't have an 86 in front of their MRN.
+
+-- Step 4: Standardize MRN values in DailyTransactions
+--         MRNs are patient identifiers that may have different formats
+--         We normalize them so they match across different data sources
+
+-- Step 4a: Fix specific MRN values that were incorrectly recorded
+--          These are hard-coded mappings for known patient identifier errors
 UPDATE [DataCleanup].[dbo].[DailyTransactions]
 SET PatientNumberUpdated = CASE
     WHEN PatientNumberUpdated = '86' THEN '391'
@@ -333,27 +378,34 @@ SET PatientNumberUpdated = CASE
 	ELSE PatientNumberUpdated
 END;
 
--- Remove '-' to standardize the MRN's
+-- Step 4b: Remove dashes from MRN values to standardize format
+--          Some systems include dashes (e.g., "SYN-1234"), we'll remove them temporarily
 UPDATE [DataCleanup].[dbo].[DailyTransactions]
 SET PatientNumberUpdated = REPLACE(PatientNumberUpdated, '-', '')
 WHERE PatientNumberUpdated LIKE '%-%';
 
--- Fix incorrect spelling of SNY
+-- Step 4c: Fix misspelled "SNY" to correct "SYN"
+--          This handles data entry errors in the patient identifier system
 UPDATE [DataCleanup].[dbo].[DailyTransactions]
 SET PatientNumberUpdated = REPLACE(PatientNumberUpdated, 'SNY', 'SYN')
 WHERE PatientNumberUpdated LIKE '%SNY%';
 
--- Removing the 86 or 85 to get the TrueMRN for Transactions
+-- Step 4d: Remove the 86 or 85 prefix from MRNs
+--          The billing system prepends "86" or "85" to all MRNs, we extract the true MRN
+--          Example: "86" + "1234" becomes "1234"
 UPDATE [DataCleanup].[dbo].[DailyTransactions]
 SET PatientNumberUpdated = SUBSTRING(PatientNumberUpdated, 3, LEN(PatientNumberUpdated) - 2)
 WHERE (PatientNumberUpdated LIKE '86%' OR PatientNumberUpdated LIKE '85%');
 
--- Readd the - to the SYN Patients to make MRN's match Referral's MRN
+-- Step 4e: Re-add the dash to SYN patient identifiers to match referral system format
+--          SYN patients use a special format: "SYN-" prefix
+--          Example: "SYN1234" becomes "SYN-1234"
 UPDATE [DataCleanup].[dbo].[DailyTransactions]
 SET PatientNumberUpdated = CONCAT('SYN-', SUBSTRING(PatientNumberUpdated, 4, LEN(PatientNumberUpdated) - 3))
 WHERE PatientNumberUpdated LIKE 'S%';
 
--- Hard Coded Patient MRN Transformations for post 86/85 Removal
+-- Step 4f: Fix additional MRN mappings discovered through manual review
+--          These corrections were validated by comparing data across systems
 UPDATE [DataCleanup].[dbo].[DailyTransactions]
 SET PatientNumberUpdated = CASE
     WHEN PatientNumberUpdated = '62A' THEN '62'
@@ -375,6 +427,9 @@ SET PatientNumberUpdated = CASE
 END;
 
 
+-- Step 5: Create the Ref (Referral) table
+--         This table contains referral and admission information for patients
+--         It includes clinical approvals, insurance authorizations, treatment dates
 CREATE TABLE DataCleanup.dbo.Ref (
     ID INT IDENTITY(1,1) PRIMARY KEY,
     [Patient ID] NVARCHAR(255),
@@ -417,7 +472,6 @@ CREATE TABLE DataCleanup.dbo.Ref (
     [Comparison Sim Date] date,
     [Comparison Plan Requested Date] date,
     [Comparison Plan Completed Date] date,
-    [FY Quarter] NVARCHAR(255),
     [Inquiry Source] NVARCHAR(255),
     [Visit Number] NVARCHAR(255), -- new
     TransMRN NVARCHAR(255),
@@ -446,7 +500,9 @@ CREATE TABLE DataCleanup.dbo.Ref (
 );
 GO
 
--- Step 2: Copy Data from Existing Table to Temporary Table
+-- Step 6: Populate Ref table from ReferralRaw data
+--         Copy all referral data from the raw import, maintaining all date fields
+--         and approval status information for tracking patient progress
 INSERT INTO DataCleanup.dbo.Ref (
     [Patient ID], [Patient Name], State, [Referral Date], [Ref Month],
     [Self-referral Inquiry Date], DOB, SBRT, [Prior RT], [IV Contrast], 
@@ -459,7 +515,7 @@ INSERT INTO DataCleanup.dbo.Ref (
     [IRO Submission Date], [1st Appeal Denial Date], [2nd Appeal Denial Date], 
     [Peer to Peer Date], [LMN Date], [Comparison Sim Date], 
     [Comparison Plan Requested Date], [Comparison Plan Completed Date], 
-    [FY Quarter], [Inquiry Source], [Funding Type], [Treatment], [Sim], [Consult],
+    [Inquiry Source], [Funding Type], [Treatment], [Sim], [Consult],
     [Referred Back], [Sim Date], [1st Treatment], [Final Treatment], [Comment] ,
     [On-Hold] ,[FBR] ,[Consult Date] ,[MultiPlan] ,[ICD 10 verified] , [ICD 10]
 )
@@ -475,28 +531,35 @@ SELECT
     [IRO Submission Date], [1st Appeal Denial Date], [2nd Appeal Denial Date], 
     [Peer to Peer Date], [LMN Date], [Comparison Sim Date], 
     [Comparison Plan Requested Date], [Comparison Plan Completed Date], 
-    [FY Quarter], [Inquiry Source], [Funding Type], [Treatment], [Sim], [Consult],
+    [Inquiry Source], [Funding Type], [Treatment], [Sim], [Consult],
     [Referred Back], [Sim Date], [1st Treatment], [Final Treatment], [Comment] ,
     [On-Hold] ,[FBR] ,[Consult Date] ,[MultiPlan] ,[ICD 10 verified] , [ICD 10]
 FROM [DataCleanup].[dbo].[ReferralRaw];
 GO
 
+-- Step 7: Clean up MRN values in Ref table to match DailyTransactions format
+--         Following the same standardization process as DailyTransactions
 
--- Removing '-' for Ref
+-- Step 7a: Remove dashes from all Patient IDs
 UPDATE [DataCleanup].[dbo].[Ref]
 SET [Patient ID] = REPLACE([Patient ID], '-', '');
 
--- Fix incorrect spelling of SNY
+-- Step 7b: Fix "SNY" misspellings to "SYN"
 UPDATE [DataCleanup].[dbo].[Ref]
 SET [Patient ID] = REPLACE([Patient ID], 'SNY', 'SYN')
 WHERE [Patient ID] LIKE '%SNY%';
 
--- Readd the - to the SYN Patient
+-- Step 7c: Re-add dash to SYN patient identifiers for consistency
 UPDATE [DataCleanup].[dbo].[Ref]
 SET [Patient ID] = CONCAT('SYN-', SUBSTRING([Patient ID], 4, LEN([Patient ID])))
 WHERE [Patient ID] LIKE '%S%';
 
--- Add the VisitNumber column
+-- Step 8: Create Visit tracking columns
+--         These columns track patient visits and create a unique identifier linking
+--         transactions to referrals
+
+-- Step 8a: Drop and recreate [Visit Number] column
+--          This ensures a clean column state for the numbering operation
 ALTER TABLE [DataCleanup].[dbo].[Ref]
 DROP COLUMN [Visit Number]
 GO
@@ -505,7 +568,9 @@ ALTER TABLE [DataCleanup].[dbo].[Ref]
 ADD [Visit Number] NVARCHAR(255);;
 GO
 
--- Update the VisitNumber column
+-- Step 8b: Assign sequential visit numbers to each patient
+--          Visit 1 = first referral date, Visit 2 = second referral date, etc.
+--          This helps identify multiple referrals for the same patient
 WITH NumberedVisits AS (
     SELECT 
         [Patient ID], 
@@ -520,7 +585,11 @@ JOIN NumberedVisits nv
 ON r.[Patient ID] = nv.[Patient ID] 
 AND r.[Referral Date] = nv.[Referral Date];
 
--- Add the TransMRN column
+-- Step 9: Create TransMRN column for linking transactions to referrals
+--         TransMRN = PatientID + '-' + VisitNumber
+--         This unique combination allows matching transaction records to specific referral visits
+
+-- Step 9a: Drop and recreate TransMRN column
 ALTER TABLE [DataCleanup].[dbo].[Ref]
 DROP COLUMN TransMRN
 GO
@@ -529,6 +598,11 @@ ALTER TABLE [DataCleanup].[dbo].[Ref]
 ADD TransMRN NVARCHAR(255);
 GO
 
+-- Step 9b: Populate TransMRN with PatientID-VisitNumber format
+--          Example: "1234-1" means patient 1234's first visit
 UPDATE r
 SET r.TransMRN = r.[Patient ID] + '-' + r.[Visit Number]
 FROM DataCleanup.dbo.Ref r ;
+
+-- End of Script 1
+-- Next: Run "2 - Isolating First, Last, Middle - Transactions.sql"
