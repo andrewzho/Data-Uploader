@@ -1,8 +1,2 @@
-SQL execution failed: f42000', ‘[42000] [Microsoft][ODBC Driver
-17 for SQL Server][SQL ServerjString or binary data would be
-truncated in table 'DataCleanup.dbo.Ref, column 'Comment'.
-Truncated value: 'All levels of appeal have been exhausted
-7/22/24, (Patient willing to pay out of pocket instead of '.
-(2628) (SQLExecDirectW); [42000] [Microsoft][ODBC Driver 17 for
-SQL Server][SQL ServerjThe statement has been terminated.
-(3621)')
+SQL execution failed: ('42000', '[42000] [Microsoft][ODBC Driver 17 for SQL Server][SQL Serverjlncorrect syntax near (102) (SQLExecDirectW)')
+
