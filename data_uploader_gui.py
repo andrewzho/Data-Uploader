@@ -24,18 +24,23 @@ import traceback
 from datetime import datetime
 
 # Try to import tkinterdnd2 for drag-and-drop support
+HAS_DND = False
+DND_FILES = None
+DND_TEXT = None
 try:
     from tkinterdnd2 import DND_FILES, DND_TEXT
+    # Also need to initialize tkinterdnd2
     HAS_DND = True
-except ImportError:
+except (ImportError, Exception) as e:
     HAS_DND = False
+    print(f"Note: Drag-and-drop not available ({e}). You can still click to select files.")
 
 # Import the existing upload_refresh functionality
 try:
     from upload_refresh import (
-        connect_from_cfg, test_connection, list_tables, 
+        connect_from_cfg, test_connection, list_tables, get_tables_list,
         upload_from_folders, run_sql_scripts, list_sql_files,
-        ensure_folders_from_config
+        ensure_folders_from_config, get_table_columns
     )
     import pandas as pd
     import pyodbc
@@ -56,14 +61,11 @@ class DataUploaderGUI:
         self.config_path = Path(__file__).parent / 'config.json'
         self.config = self.load_config()
         
-        # Initialize logging widget first
-        self.create_logs_tab()
-        
         # Threading for long operations
         self.operation_queue = queue.Queue()
         self.check_queue()
         
-        # Create the rest of the interface
+        # Create the interface (this creates the notebook and all tabs)
         self.create_widgets()
         self.load_config_to_ui()
         
@@ -93,16 +95,21 @@ class DataUploaderGUI:
     
     def create_widgets(self):
         """Create the main GUI widgets"""
-        # Create notebook for tabs
+        # Create notebook for tabs FIRST
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill='both', expand=True, padx=10, pady=10)
         
-        # Create tabs (logs tab is already created in __init__)
+        # Create all tabs (now that notebook exists)
+        print("DEBUG: Creating tabs...")
         self.create_connection_tab()
+        print("DEBUG: Connection tab created")
         self.create_upload_tab()
+        print("DEBUG: Upload tab created")
         self.create_sql_tab()
-        # Add the logs tab to the notebook
-        self.notebook.add(self.logs_frame, text="Logs & Status")
+        print("DEBUG: SQL tab creation attempted")
+        self.create_logs_tab()
+        print("DEBUG: Logs tab creation attempted")
+        print(f"DEBUG: Total tabs in notebook: {self.notebook.index('end')}")
         
     def create_connection_tab(self):
         """Create database connection configuration tab"""
@@ -169,8 +176,33 @@ class DataUploaderGUI:
         button_frame.pack(fill='x', padx=10, pady=10)
         
         ttk.Button(button_frame, text="Test Connection", command=self.test_connection).pack(side='left', padx=5)
+        ttk.Button(button_frame, text="Browse Tables", command=self.browse_tables).pack(side='left', padx=5)
         ttk.Button(button_frame, text="Save Configuration", command=self.save_config).pack(side='left', padx=5)
         ttk.Button(button_frame, text="Load Configuration", command=self.load_config_to_ui).pack(side='left', padx=5)
+        
+        # Table browser frame
+        browser_frame = ttk.LabelFrame(self.conn_frame, text="Available Tables", padding=10)
+        browser_frame.pack(fill='both', expand=True, padx=10, pady=5)
+        
+        # Table list with scrollbar
+        table_list_frame = ttk.Frame(browser_frame)
+        table_list_frame.pack(fill='both', expand=True)
+        
+        self.table_listbox = tk.Listbox(table_list_frame, height=10)
+        table_scroll = ttk.Scrollbar(table_list_frame, orient='vertical', command=self.table_listbox.yview)
+        self.table_listbox.configure(yscrollcommand=table_scroll.set)
+        
+        self.table_listbox.pack(side='left', fill='both', expand=True)
+        table_scroll.pack(side='right', fill='y')
+        
+        # Selected table display
+        self.selected_table_var = tk.StringVar(value="No table selected")
+        ttk.Label(browser_frame, text="Selected Table:", font=('Arial', 9, 'bold')).pack(anchor='w', pady=(5, 2))
+        ttk.Label(browser_frame, textvariable=self.selected_table_var, font=('Arial', 9), 
+                 foreground='blue').pack(anchor='w', pady=(0, 5))
+        
+        # Bind double-click to select table
+        self.table_listbox.bind('<Double-Button-1>', self.on_table_select)
         
     def create_upload_tab(self):
         """Create file upload tab"""
@@ -180,102 +212,151 @@ class DataUploaderGUI:
         # Title
         title_frame = ttk.Frame(self.upload_frame)
         title_frame.pack(fill='x', padx=10, pady=10)
-        ttk.Label(title_frame, text="Table Configuration", 
+        ttk.Label(title_frame, text="Upload Data to Tables", 
                  font=('Arial', 14, 'bold')).pack(anchor='w')
-        ttk.Label(title_frame, text="For each table below, select an upload mode and optionally choose a specific file.", 
+        ttk.Label(title_frame, text="Select a table, drop your files, validate, then upload.", 
                  font=('Arial', 9), foreground='gray').pack(anchor='w')
         
-        # Table mapping frame - scrollable canvas for dynamic content
-        mapping_frame = ttk.LabelFrame(self.upload_frame, text="Configure Tables", padding=10)
-        mapping_frame.pack(fill='both', expand=True, padx=10, pady=5)
+        # Quick table selection frame
+        quick_select_frame = ttk.LabelFrame(self.upload_frame, text="Quick Table Selection", padding=10)
+        quick_select_frame.pack(fill='x', padx=10, pady=5)
         
-        # Create canvas with scrollbar for table mappings
-        self.mapping_canvas = tk.Canvas(mapping_frame, bg='white', highlightthickness=0)
-        mapping_scroll = ttk.Scrollbar(mapping_frame, orient='vertical', command=self.mapping_canvas.yview)
-        self.mapping_scrollable_frame = ttk.Frame(self.mapping_canvas)
+        ttk.Label(quick_select_frame, text="Target Table:").pack(side='left', padx=5)
+        self.quick_table_var = tk.StringVar()
+        self.quick_table_combo = ttk.Combobox(quick_select_frame, textvariable=self.quick_table_var, 
+                                             width=50, state='readonly')
+        self.quick_table_combo.pack(side='left', padx=5, fill='x', expand=True)
+        self.quick_table_combo.bind('<<ComboboxSelected>>', self.on_quick_table_select)
         
-        self.mapping_scrollable_frame.bind(
-            "<Configure>",
-            lambda e: self.mapping_canvas.configure(scrollregion=self.mapping_canvas.bbox("all"))
-        )
+        ttk.Button(quick_select_frame, text="Refresh Tables", 
+                  command=self.refresh_quick_tables).pack(side='left', padx=5)
         
-        self.mapping_canvas.create_window((0, 0), window=self.mapping_scrollable_frame, anchor="nw")
-        self.mapping_canvas.configure(yscrollcommand=mapping_scroll.set)
+        # File drop zone
+        drop_zone_frame = ttk.LabelFrame(self.upload_frame, text="Drop Files Here", padding=10)
+        drop_zone_frame.pack(fill='both', expand=True, padx=10, pady=5)
         
-        # Bind mousewheel scrolling to the canvas
-        self.mapping_canvas.bind("<MouseWheel>", self._on_mousewheel)
-        self.mapping_canvas.bind("<Button-4>", self._on_mousewheel)  # Linux scroll up
-        self.mapping_canvas.bind("<Button-5>", self._on_mousewheel)  # Linux scroll down
-        self.mapping_scrollable_frame.bind("<MouseWheel>", self._on_mousewheel)
-        self.mapping_scrollable_frame.bind("<Button-4>", self._on_mousewheel)
-        self.mapping_scrollable_frame.bind("<Button-5>", self._on_mousewheel)
+        self.drop_zone = tk.Label(drop_zone_frame, text="Drag and drop Excel files here\nor click to select files", 
+                                  font=('Arial', 12), bg='#f0f0f0', relief='sunken', 
+                                  borderwidth=2, padx=20, pady=40)
+        self.drop_zone.pack(fill='both', expand=True)
         
-        self.mapping_canvas.pack(side='left', fill='both', expand=True)
-        mapping_scroll.pack(side='right', fill='y')
+        # Enable drag and drop if available (with error handling)
+        if HAS_DND:
+            try:
+                self.drop_zone.drop_target_register(DND_FILES)
+                self.drop_zone.dnd_bind('<<Drop>>', self.on_file_drop)
+            except Exception as e:
+                print(f"Warning: Could not enable drag-and-drop: {e}")
+                print("You can still click to select files")
         
-        # Store mapping data for upload process
-        self.table_configs = {}  # {folder: {'upload_mode': str, 'file': str}}
+        self.drop_zone.bind('<Button-1>', self.select_files_for_table)
         
-        # Error handling options
-        options_frame = ttk.LabelFrame(self.upload_frame, text="Upload Options", padding=10)
-        options_frame.pack(fill='x', padx=10, pady=5)
+        # Selected files display
+        files_frame = ttk.LabelFrame(self.upload_frame, text="Selected Files", padding=10)
+        files_frame.pack(fill='x', padx=10, pady=5)
         
-        self.stop_on_error_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(options_frame, text="Stop on first error", 
-                       variable=self.stop_on_error_var).pack(anchor='w', pady=5)
+        self.selected_files_listbox = tk.Listbox(files_frame, height=4)
+        files_scroll = ttk.Scrollbar(files_frame, orient='vertical', command=self.selected_files_listbox.yview)
+        self.selected_files_listbox.configure(yscrollcommand=files_scroll.set)
         
-        # Upload buttons
-        upload_button_frame = ttk.Frame(self.upload_frame)
-        upload_button_frame.pack(fill='x', padx=10, pady=10)
+        self.selected_files_listbox.pack(side='left', fill='both', expand=True)
+        files_scroll.pack(side='right', fill='y')
         
-        ttk.Button(upload_button_frame, text="Refresh Table List", 
-                  command=self.refresh_table_list).pack(side='left', padx=5)
-        ttk.Button(upload_button_frame, text="Validate & Fix Files", 
-                  command=self.validate_and_fix_selected_files).pack(side='left', padx=5)
-        ttk.Button(upload_button_frame, text="Start Upload", 
-                  command=self.start_upload).pack(side='left', padx=5)
+        # Store current table and files
+        self.current_upload_table = None
+        self.current_upload_files = []
+        
+        # Upload mode selection
+        mode_frame = ttk.LabelFrame(self.upload_frame, text="Upload Mode", padding=10)
+        mode_frame.pack(fill='x', padx=10, pady=5)
+        
+        self.upload_mode_var = tk.StringVar(value='delete')
+        ttk.Radiobutton(mode_frame, text="Delete existing data, then insert new data", 
+                       variable=self.upload_mode_var, value='delete').pack(anchor='w', padx=5)
+        ttk.Radiobutton(mode_frame, text="Append new data to existing data", 
+                       variable=self.upload_mode_var, value='append').pack(anchor='w', padx=5)
+        
+        # Action buttons
+        action_frame = ttk.Frame(self.upload_frame)
+        action_frame.pack(fill='x', padx=10, pady=10)
+        
+        ttk.Button(action_frame, text="Validate Files", 
+                  command=self.validate_current_files).pack(side='left', padx=5)
+        ttk.Button(action_frame, text="Clear Selection", 
+                  command=self.clear_file_selection).pack(side='left', padx=5)
+        ttk.Button(action_frame, text="Upload to Database", 
+                  command=self.upload_current_files).pack(side='left', padx=5)
+        
+        # Keep old table configs for backward compatibility (used by refresh_table_list)
+        self.table_configs = {}
+        self.mapping_canvas = None
+        self.mapping_scrollable_frame = None
         
     def create_sql_tab(self):
         """Create SQL script execution tab"""
-        self.sql_frame = ttk.Frame(self.notebook)
-        self.notebook.add(self.sql_frame, text="SQL Scripts")
-        
-        ttk.Label(self.sql_frame, text="SQL Script Execution", 
-                 font=('Arial', 14, 'bold')).pack(pady=10)
-        
-        # SQL files list
-        sql_list_frame = ttk.LabelFrame(self.sql_frame, text="Available SQL Scripts", padding=10)
-        sql_list_frame.pack(fill='both', expand=True, padx=10, pady=5)
-        
-        self.sql_listbox = tk.Listbox(sql_list_frame, height=8)
-        sql_scroll = ttk.Scrollbar(sql_list_frame, orient='vertical', command=self.sql_listbox.yview)
-        self.sql_listbox.configure(yscrollcommand=sql_scroll.set)
-        
-        self.sql_listbox.pack(side='left', fill='both', expand=True)
-        sql_scroll.pack(side='right', fill='y')
-        
-        # SQL options
-        sql_options_frame = ttk.LabelFrame(self.sql_frame, text="Execution Options", padding=10)
-        sql_options_frame.pack(fill='x', padx=10, pady=5)
-        
-        self.upload_before_sql_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(sql_options_frame, text="Upload files before running SQL scripts", 
-                       variable=self.upload_before_sql_var).pack(anchor='w', pady=5)
-        
-        # SQL buttons
-        sql_button_frame = ttk.Frame(self.sql_frame)
-        sql_button_frame.pack(fill='x', padx=10, pady=10)
-        
-        ttk.Button(sql_button_frame, text="Refresh SQL List", 
-                  command=self.refresh_sql_list).pack(side='left', padx=5)
-        ttk.Button(sql_button_frame, text="Run Selected Scripts", 
-                  command=self.run_selected_sql).pack(side='left', padx=5)
-        ttk.Button(sql_button_frame, text="Run All Scripts", 
-                  command=self.run_all_sql).pack(side='left', padx=5)
+        try:
+            self.sql_frame = ttk.Frame(self.notebook)
+            self.notebook.add(self.sql_frame, text="SQL Scripts")
+            print("DEBUG: SQL Scripts tab created and added to notebook")
+            
+            ttk.Label(self.sql_frame, text="SQL Script Execution", 
+                     font=('Arial', 14, 'bold')).pack(pady=10)
+            
+            # SQL files list
+            sql_list_frame = ttk.LabelFrame(self.sql_frame, text="Available SQL Scripts", padding=10)
+            sql_list_frame.pack(fill='both', expand=True, padx=10, pady=5)
+            
+            self.sql_listbox = tk.Listbox(sql_list_frame, height=8)
+            sql_scroll = ttk.Scrollbar(sql_list_frame, orient='vertical', command=self.sql_listbox.yview)
+            self.sql_listbox.configure(yscrollcommand=sql_scroll.set)
+            
+            self.sql_listbox.pack(side='left', fill='both', expand=True)
+            sql_scroll.pack(side='right', fill='y')
+            
+            # SQL options
+            sql_options_frame = ttk.LabelFrame(self.sql_frame, text="Execution Options", padding=10)
+            sql_options_frame.pack(fill='x', padx=10, pady=5)
+            
+            self.upload_before_sql_var = tk.BooleanVar(value=True)
+            ttk.Checkbutton(sql_options_frame, text="Upload files before running SQL scripts", 
+                           variable=self.upload_before_sql_var).pack(anchor='w', pady=5)
+            
+            # SQL buttons
+            sql_button_frame = ttk.Frame(self.sql_frame)
+            sql_button_frame.pack(fill='x', padx=10, pady=10)
+            
+            ttk.Button(sql_button_frame, text="Refresh SQL List", 
+                      command=self.refresh_sql_list).pack(side='left', padx=5)
+            ttk.Button(sql_button_frame, text="Run Selected Scripts", 
+                      command=self.run_selected_sql).pack(side='left', padx=5)
+            ttk.Button(sql_button_frame, text="Run All Scripts", 
+                      command=self.run_all_sql).pack(side='left', padx=5)
+        except Exception as e:
+            # If SQL tab creation fails, log it but don't crash
+            print(f"Error creating SQL tab: {e}")
+            import traceback
+            traceback.print_exc()
+            # Create a minimal SQL tab so the app doesn't break
+            self.sql_frame = ttk.Frame(self.notebook)
+            self.notebook.add(self.sql_frame, text="SQL Scripts (Error)")
+            ttk.Label(self.sql_frame, text=f"Error loading SQL Scripts tab: {e}", 
+                     foreground='red').pack(pady=20)
         
     def create_logs_tab(self):
         """Create logging and status tab"""
-        self.logs_frame = ttk.Frame(self.notebook if hasattr(self, 'notebook') else self.root)
+        try:
+            self.logs_frame = ttk.Frame(self.notebook)
+            self.notebook.add(self.logs_frame, text="Logs & Status")
+            print("DEBUG: Logs & Status tab created and added to notebook")
+        except Exception as e:
+            print(f"ERROR creating Logs tab: {e}")
+            import traceback
+            traceback.print_exc()
+            # Create minimal logs tab
+            self.logs_frame = ttk.Frame(self.notebook)
+            self.notebook.add(self.logs_frame, text="Logs & Status (Error)")
+            ttk.Label(self.logs_frame, text=f"Error loading Logs tab: {e}", 
+                     foreground='red').pack(pady=20)
         
         ttk.Label(self.logs_frame, text="Operation Logs", 
                  font=('Arial', 14, 'bold')).pack(pady=10)
@@ -325,6 +406,9 @@ class DataUploaderGUI:
             self.toggle_auth()
             self.refresh_table_list()
             self.refresh_sql_list()
+            # Refresh quick tables in upload tab if it exists
+            if hasattr(self, 'quick_table_combo'):
+                self.refresh_quick_tables()
             self.log_message("Configuration loaded successfully")
         except Exception as e:
             self.log_message(f"Error loading configuration: {e}")
@@ -359,6 +443,8 @@ class DataUploaderGUI:
                 if result == 0:
                     self.log_message("✓ Database connection successful!")
                     self.operation_queue.put(("success", "Database connection successful!"))
+                    # Auto-refresh table list on successful connection
+                    self.root.after(500, self.browse_tables)
                 else:
                     self.log_message("✗ Database connection failed!")
                     self.operation_queue.put(("error", "Database connection failed!"))
@@ -368,9 +454,249 @@ class DataUploaderGUI:
         
         threading.Thread(target=test_conn, daemon=True).start()
     
+    def browse_tables(self):
+        """Browse and display available tables from the database"""
+        def browse():
+            try:
+                self.log_message("Loading tables from database...")
+                tables = get_tables_list(self.config_path)
+                if not tables:
+                    self.log_message("No tables found or connection failed")
+                    self.operation_queue.put(("error", "No tables found. Check connection and permissions."))
+                    return
+                
+                # Update listbox
+                self.table_listbox.delete(0, tk.END)
+                for schema, table, full_name in tables:
+                    display_name = f"{schema}.{table}"
+                    self.table_listbox.insert(tk.END, display_name)
+                    # Store full_name as item data (we'll use index to retrieve)
+                
+                # Store tables list for later retrieval
+                self.available_tables = tables
+                self.log_message(f"Found {len(tables)} table(s)")
+                self.operation_queue.put(("success", f"Found {len(tables)} table(s)"))
+            except Exception as e:
+                self.log_message(f"Error browsing tables: {e}")
+                self.operation_queue.put(("error", f"Error browsing tables: {e}"))
+        
+        threading.Thread(target=browse, daemon=True).start()
+    
+    def on_table_select(self, event=None):
+        """Handle table selection from listbox"""
+        selection = self.table_listbox.curselection()
+        if not selection:
+            return
+        
+        idx = selection[0]
+        if hasattr(self, 'available_tables') and idx < len(self.available_tables):
+            schema, table, full_name = self.available_tables[idx]
+            self.selected_table_var.set(full_name)
+            self.log_message(f"Selected table: {full_name}")
+            # Also update quick table selector in upload tab
+            if hasattr(self, 'quick_table_combo'):
+                self.refresh_quick_tables()
+                # Try to set the selection
+                try:
+                    idx = [t[2] for t in self.available_tables].index(full_name)
+                    if idx < len(self.quick_table_combo['values']):
+                        self.quick_table_var.set(self.quick_table_combo['values'][idx])
+                        self.current_upload_table = full_name
+                except:
+                    pass
+    
+    def refresh_quick_tables(self):
+        """Refresh the quick table selector in upload tab"""
+        def refresh():
+            try:
+                tables = get_tables_list(self.config_path)
+                if tables:
+                    table_names = [full_name for _, _, full_name in tables]
+                    self.quick_table_combo['values'] = table_names
+                    self.available_tables = tables
+                    self.log_message(f"Refreshed {len(tables)} table(s) in upload tab")
+            except Exception as e:
+                self.log_message(f"Error refreshing tables: {e}")
+        
+        threading.Thread(target=refresh, daemon=True).start()
+    
+    def on_quick_table_select(self, event=None):
+        """Handle quick table selection in upload tab"""
+        selected = self.quick_table_var.get()
+        if selected:
+            self.current_upload_table = selected
+            self.log_message(f"Selected table for upload: {selected}")
+            self.drop_zone.config(text=f"Table: {selected}\n\nDrag and drop Excel files here\nor click to select files")
+    
+    def on_file_drop(self, event):
+        """Handle file drop event"""
+        try:
+            files = self.root.tk.splitlist(event.data)
+            cleaned_files = []
+            for f in files:
+                clean_path = f.strip('{}')
+                if os.path.isfile(clean_path) and clean_path.lower().endswith(('.xlsx', '.xls')):
+                    cleaned_files.append(clean_path)
+            
+            if cleaned_files:
+                self.add_files_to_selection(cleaned_files)
+        except Exception as e:
+            self.log_message(f"Error processing dropped files: {e}")
+            messagebox.showerror("Error", f"Error processing dropped files: {e}")
+    
+    def select_files_for_table(self, event=None):
+        """Select files for the current table"""
+        if not self.current_upload_table:
+            messagebox.showwarning("No Table Selected", "Please select a table first from the dropdown above.")
+            return
+        
+        files = filedialog.askopenfilenames(
+            title=f"Select files for {self.current_upload_table}",
+            filetypes=[("Excel files", "*.xlsx *.xls"), ("All files", "*.*")]
+        )
+        
+        if files:
+            self.add_files_to_selection(list(files))
+    
+    def add_files_to_selection(self, files):
+        """Add files to the current selection"""
+        if not self.current_upload_table:
+            messagebox.showwarning("No Table Selected", "Please select a table first.")
+            return
+        
+        for file_path in files:
+            if file_path not in self.current_upload_files:
+                self.current_upload_files.append(file_path)
+                file_name = Path(file_path).name
+                self.selected_files_listbox.insert(tk.END, file_name)
+                self.log_message(f"Added file: {file_name}")
+    
+    def clear_file_selection(self):
+        """Clear the current file selection"""
+        self.current_upload_files.clear()
+        self.selected_files_listbox.delete(0, tk.END)
+        self.log_message("Cleared file selection")
+    
+    def validate_current_files(self):
+        """Validate the currently selected files against the selected table"""
+        if not self.current_upload_table:
+            messagebox.showwarning("No Table Selected", "Please select a table first.")
+            return
+        
+        if not self.current_upload_files:
+            messagebox.showwarning("No Files Selected", "Please select files to validate.")
+            return
+        
+        def validate():
+            try:
+                self.log_message(f"\n{'='*80}")
+                self.log_message(f"VALIDATING {len(self.current_upload_files)} FILE(S) FOR TABLE: {self.current_upload_table}")
+                self.log_message(f"{'='*80}\n")
+                
+                from validate_and_clean_data import validate_file
+                
+                all_valid = True
+                for file_path in self.current_upload_files:
+                    file_name = Path(file_path).name
+                    self.log_message(f"Validating: {file_name}...")
+                    
+                    # Extract table name from full name (e.g., "DataCleanup.dbo.TransactionsRaw" -> "TransactionsRaw")
+                    table_parts = self.current_upload_table.split('.')
+                    table_name = table_parts[-1].strip('[]')
+                    
+                    results = validate_file(file_path, table_name)
+                    
+                    if results['valid']:
+                        self.log_message(f"  ✓ {file_name}: PASSED")
+                    else:
+                        self.log_message(f"  ❌ {file_name}: FAILED")
+                        if results['missing_columns']:
+                            self.log_message(f"     Missing columns: {', '.join(results['missing_columns'][:5])}")
+                        if results['extra_columns']:
+                            self.log_message(f"     Extra columns: {', '.join(results['extra_columns'][:5])}")
+                        all_valid = False
+                
+                self.log_message(f"\n{'='*80}")
+                if all_valid:
+                    self.log_message("✓ ALL FILES VALIDATED SUCCESSFULLY!")
+                    self.operation_queue.put(("success", "All files validated successfully!"))
+                else:
+                    self.log_message("❌ SOME FILES FAILED VALIDATION")
+                    self.operation_queue.put(("error", "Some files failed validation. Check logs for details."))
+                
+            except Exception as e:
+                self.log_message(f"Validation error: {e}")
+                self.operation_queue.put(("error", f"Validation failed: {e}"))
+        
+        threading.Thread(target=validate, daemon=True).start()
+    
+    def upload_current_files(self):
+        """Upload the currently selected files to the selected table"""
+        if not self.current_upload_table:
+            messagebox.showwarning("No Table Selected", "Please select a table first.")
+            return
+        
+        if not self.current_upload_files:
+            messagebox.showwarning("No Files Selected", "Please select files to upload.")
+            return
+        
+        def upload():
+            try:
+                self.status_var.set("Uploading files...")
+                self.progress_var.set(0)
+                self.log_message(f"\n{'='*80}")
+                self.log_message(f"UPLOADING {len(self.current_upload_files)} FILE(S) TO: {self.current_upload_table}")
+                self.log_message(f"{'='*80}\n")
+                
+                # Connect to database
+                conn = connect_from_cfg(self.config['db'])
+                try:
+                    # Get table columns for validation
+                    table_cols = get_table_columns(conn, self.current_upload_table)
+                    
+                    upload_mode = self.upload_mode_var.get()
+                    
+                    # Process each file
+                    for idx, file_path in enumerate(self.current_upload_files):
+                        file_name = Path(file_path).name
+                        self.log_message(f"Processing {file_name}...")
+                        
+                        # Read Excel file
+                        df = pd.read_excel(file_path)
+                        
+                        # Prepare DataFrame (align columns, coerce types)
+                        from upload_refresh import prepare_dataframe_for_table
+                        df_prepared = prepare_dataframe_for_table(df, table_cols, filename=file_name)
+                        
+                        # Upload to table
+                        from upload_refresh import upload_df_to_table
+                        upload_df_to_table(conn, df_prepared, self.current_upload_table, 
+                                         upload_mode=upload_mode, table_cols=table_cols)
+                        
+                        self.log_message(f"  ✓ Uploaded {len(df_prepared)} rows from {file_name}")
+                        self.progress_var.set((idx + 1) * 100 / len(self.current_upload_files))
+                    
+                    self.log_message(f"\n✓ UPLOAD COMPLETED SUCCESSFULLY!")
+                    self.status_var.set("Upload completed!")
+                    self.operation_queue.put(("success", f"Successfully uploaded {len(self.current_upload_files)} file(s)!"))
+                    
+                finally:
+                    conn.close()
+                    
+            except Exception as e:
+                self.log_message(f"✗ Upload failed: {e}")
+                self.status_var.set("Upload failed!")
+                self.operation_queue.put(("error", f"Upload failed: {e}"))
+        
+        threading.Thread(target=upload, daemon=True).start()
+    
     def refresh_table_list(self):
         """Refresh the table mapping list with pretty interactive controls"""
         try:
+            # Skip if the old mapping frame doesn't exist (new UI doesn't use it)
+            if not hasattr(self, 'mapping_scrollable_frame') or self.mapping_scrollable_frame is None:
+                return
+            
             # Clear existing items
             for widget in self.mapping_scrollable_frame.winfo_children():
                 widget.destroy()
@@ -842,22 +1168,38 @@ class DataUploaderGUI:
 
 def main():
     """Main function to run the application"""
-    root = tk.Tk()
-    app = DataUploaderGUI(root)
+    # Initialize tkinterdnd2 if available (must be done before creating Tk root)
+    if HAS_DND:
+        try:
+            from tkinterdnd2 import TkinterDnD
+            root = TkinterDnD.Tk()  # Use TkinterDnD's Tk instead of regular Tk
+        except Exception as e:
+            print(f"Warning: Could not initialize drag-and-drop: {e}")
+            root = tk.Tk()
+    else:
+        root = tk.Tk()
     
-    # Set window icon and properties
     try:
-        root.iconbitmap('icon.ico')  # Optional icon file
-    except:
-        pass
-    
-    # Center the window
-    root.update_idletasks()
-    x = (root.winfo_screenwidth() // 2) - (root.winfo_width() // 2)
-    y = (root.winfo_screenheight() // 2) - (root.winfo_height() // 2)
-    root.geometry(f"+{x}+{y}")
-    
-    root.mainloop()
+        app = DataUploaderGUI(root)
+        
+        # Set window icon and properties
+        try:
+            root.iconbitmap('icon.ico')  # Optional icon file
+        except:
+            pass
+        
+        # Center the window
+        root.update_idletasks()
+        x = (root.winfo_screenwidth() // 2) - (root.winfo_width() // 2)
+        y = (root.winfo_screenheight() // 2) - (root.winfo_height() // 2)
+        root.geometry(f"+{x}+{y}")
+        
+        root.mainloop()
+    except Exception as e:
+        print(f"Error starting application: {e}")
+        import traceback
+        traceback.print_exc()
+        input("Press Enter to exit...")
 
 
 if __name__ == "__main__":

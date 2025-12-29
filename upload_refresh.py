@@ -165,31 +165,48 @@ def test_connection(cfg_path: Path):
         conn.close()
 
 
-def list_tables(cfg_path: Path):
-    """List accessible base tables via INFORMATION_SCHEMA.TABLES"""
+def get_tables_list(cfg_path: Path):
+    """Get list of accessible base tables as list of (schema, table_name, full_name) tuples"""
     cfg = json.load(open(cfg_path, 'r', encoding='utf-8'))
     try:
         conn = connect_from_cfg(cfg['db'])
     except Exception as e:
-        print('Connection failed:', e)
-        return 1
+        return []
     try:
         cur = conn.cursor()
         cur.execute("SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE' ORDER BY TABLE_SCHEMA, TABLE_NAME")
         rows = cur.fetchall()
-        if not rows:
-            print('No base tables found or insufficient permissions.')
-            return 0
-        print('Accessible tables:')
+        tables = []
         for r in rows:
             try:
-                print(f"{r.TABLE_SCHEMA}.{r.TABLE_NAME}")
+                schema = r.TABLE_SCHEMA
+                table = r.TABLE_NAME
             except Exception:
                 # fallback tuple
-                print(f"{r[0]}.{r[1]}")
-        return 0
+                schema = r[0]
+                table = r[1]
+            # Create full name: schema.table or [database].schema.table if database is specified
+            db = cfg.get('db', {}).get('database', '')
+            if db:
+                full_name = f"[{db}].[{schema}].[{table}]"
+            else:
+                full_name = f"[{schema}].[{table}]"
+            tables.append((schema, table, full_name))
+        return tables
     finally:
         conn.close()
+
+
+def list_tables(cfg_path: Path):
+    """List accessible base tables via INFORMATION_SCHEMA.TABLES"""
+    tables = get_tables_list(cfg_path)
+    if not tables:
+        print('No base tables found or insufficient permissions.')
+        return 1
+    print('Accessible tables:')
+    for schema, table, full_name in tables:
+        print(full_name)
+    return 0
 
 
 def split_sql_batches(sql_text: str):
