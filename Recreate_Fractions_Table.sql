@@ -49,14 +49,7 @@ CREATE TABLE [DataCleanup].[dbo].[Fractions] (
     [Check-In] BIT,
     [Questionnaire] NVARCHAR(255),
     [Priority] NVARCHAR(255),
-    [Checklist] NVARCHAR(255),
-    [F1] NVARCHAR(255),
-    [descr] NVARCHAR(255),
-    [Cancer Flag] NVARCHAR(255),
-    [ICD_High_level_Category] NVARCHAR(255),
-    [ICD_Second_Level] NVARCHAR(255),
-    [ICD_Detailed] NVARCHAR(255),
-    [Start Date Only] DATE
+    [Checklist] NVARCHAR(255)
 );
 GO
 
