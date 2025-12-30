@@ -307,27 +307,51 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
         error_details = {}
         error_msg = str(e)
         
-        # Try to extract pyodbc error details
-        if hasattr(e, 'args') and len(e.args) > 0:
-            if isinstance(e.args[0], tuple) and len(e.args[0]) >= 2:
-                # pyodbc error format: (error_code, error_message)
-                error_details['error_code'] = e.args[0][0] if len(e.args[0]) > 0 else None
-                error_details['error_message'] = e.args[0][1] if len(e.args[0]) > 1 else str(e)
-            else:
-                error_details['error_message'] = str(e.args[0]) if e.args else str(e)
+        # Get the full exception representation
+        import traceback
+        full_traceback = traceback.format_exc()
         
-        # Try to extract SQL Server error number and state if available
+        # Try multiple ways to extract error information
+        # Method 1: Direct string representation
+        error_str_full = str(e)
+        
+        # Method 2: Try pyodbc error format
         if hasattr(e, 'args') and len(e.args) > 0:
-            error_str = str(e.args[0]) if isinstance(e.args[0], str) else str(e)
-            # Look for SQL Server error patterns like [42000] or (102)
-            sql_error_match = re.search(r'\[(\d+)\]', error_str)
-            if sql_error_match:
-                error_details['sql_error_code'] = sql_error_match.group(1)
-            
-            # Extract line number if mentioned
-            line_match = re.search(r'\((\d+)\)', error_str)
-            if line_match:
-                error_details['line_number'] = line_match.group(1)
+            # pyodbc errors often have args[0] as a tuple or string
+            first_arg = e.args[0]
+            if isinstance(first_arg, tuple) and len(first_arg) >= 2:
+                # pyodbc error format: (error_code, error_message)
+                error_details['error_code'] = first_arg[0] if len(first_arg) > 0 else None
+                error_details['error_message'] = first_arg[1] if len(first_arg) > 1 else str(e)
+                error_str_full = str(first_arg[1]) if len(first_arg) > 1 else error_str_full
+            elif isinstance(first_arg, str):
+                error_details['error_message'] = first_arg
+                error_str_full = first_arg
+            else:
+                error_details['error_message'] = str(first_arg)
+                error_str_full = str(first_arg)
+        
+        # Method 3: Check for pyodbc-specific attributes
+        if hasattr(e, 'value'):
+            error_str_full = str(e.value) if error_str_full == str(e) else error_str_full
+        
+        # Extract SQL Server error codes and line numbers from error string
+        sql_error_match = re.search(r'\[(\d+)\]', error_str_full)
+        if sql_error_match:
+            error_details['sql_error_code'] = sql_error_match.group(1)
+        
+        line_match = re.search(r'\((\d+)\)', error_str_full)
+        if line_match:
+            error_details['line_number'] = line_match.group(1)
+        
+        # Look for common SQL error patterns
+        truncation_match = re.search(r'String or binary data would be truncated.*?column \'([^\']+)\'', error_str_full, re.IGNORECASE)
+        if truncation_match:
+            error_details['truncated_column'] = truncation_match.group(1)
+        
+        type_error_match = re.search(r'Conversion failed.*?column \'([^\']+)\'', error_str_full, re.IGNORECASE)
+        if type_error_match:
+            error_details['type_error_column'] = type_error_match.group(1)
         
         # Build comprehensive error message
         print(f"\n{'='*80}")
@@ -344,10 +368,50 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
             print(f"ODBC Error Code: {error_details['error_code']}")
         if error_details.get('line_number'):
             print(f"SQL Line Number: {error_details['line_number']}")
+        if error_details.get('truncated_column'):
+            print(f"⚠ TRUNCATION ERROR in column: '{error_details['truncated_column']}'")
+        if error_details.get('type_error_column'):
+            print(f"⚠ TYPE CONVERSION ERROR in column: '{error_details['type_error_column']}'")
         
-        error_display = error_details.get('error_message', error_msg)
+        # Show the actual error message(s) - try multiple sources
         print(f"\nError Message:")
-        print(f"  {error_display}")
+        error_to_display = None
+        
+        # Priority 1: Extracted error message
+        if error_details.get('error_message'):
+            error_to_display = error_details['error_message']
+        # Priority 2: Full error string
+        elif error_str_full and error_str_full != str(e) and len(error_str_full) > 5:
+            error_to_display = error_str_full
+        # Priority 3: Basic string representation
+        elif error_msg and len(error_msg) > 5:
+            error_to_display = error_msg
+        # Priority 4: Exception args
+        elif hasattr(e, 'args') and len(e.args) > 0:
+            error_to_display = str(e.args)
+        
+        if error_to_display:
+            # Format multi-line errors nicely
+            error_lines = str(error_to_display).split('\n')
+            for line in error_lines[:10]:  # Limit to first 10 lines
+                print(f"  {line}")
+            if len(error_lines) > 10:
+                print(f"  ... ({len(error_lines) - 10} more lines)")
+        else:
+            print(f"  (Error message could not be extracted)")
+        
+        # Always show full exception details as fallback
+        print(f"\n--- Full Exception Details (for debugging) ---")
+        print(f"  Exception Type: {type(e).__name__}")
+        print(f"  Exception String: {str(e)}")
+        if hasattr(e, 'args') and e.args:
+            print(f"  Exception Args ({len(e.args)}):")
+            for i, arg in enumerate(e.args):
+                print(f"    [{i}]: {repr(arg)}")
+        if hasattr(e, '__cause__') and e.__cause__:
+            print(f"  Caused by: {type(e.__cause__).__name__}: {e.__cause__}")
+        if hasattr(e, '__context__') and e.__context__:
+            print(f"  Context: {type(e.__context__).__name__}: {e.__context__}")
         
         # Show table schema
         print(f"\n--- Table Schema ---")
