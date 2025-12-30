@@ -24,6 +24,7 @@ import json
 import argparse
 import re
 import sys
+from datetime import date as date_type
 
 try:
     import pandas as pd
@@ -420,9 +421,16 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
     
     # Build a map of column data types for proper conversion
     col_data_types = {}
+    col_is_date_only = {}  # Track which columns are DATE (not DATETIME)
+    col_is_datetime = {}  # Track which columns are DATETIME/DATETIME2 (keep time component)
     if table_cols:
         for col_name, sql_type, _ in table_cols:
-            col_data_types[col_name] = sql_type.lower()
+            sql_type_lower = sql_type.lower()
+            col_data_types[col_name] = sql_type_lower
+            # Check if it's DATE (not DATETIME/DATETIME2) - DATE columns need date-only values
+            col_is_date_only[col_name] = (sql_type_lower == 'date')
+            # Check if it's DATETIME/DATETIME2/SMALLDATETIME - these keep time component
+            col_is_datetime[col_name] = (sql_type_lower in ('datetime', 'datetime2', 'smalldatetime'))
     
     # Convert DataFrame to list of tuples, converting pandas NA/NaN to None for SQL Server
     # Use itertuples() instead of iterrows() to better preserve data types, especially booleans
@@ -468,6 +476,114 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
                 else:
                     # Convert numpy types to Python native types for pyodbc compatibility
                     val = convert_numpy_to_python(val)
+                    
+                    # Special handling for DATE columns (not DATETIME)
+                    # SQL Server DATE columns only accept dates, not datetimes with time components
+                    if col_name in col_is_date_only and col_is_date_only[col_name]:
+                        # Convert Timestamp/datetime to date-only
+                        if isinstance(val, pd.Timestamp):
+                            try:
+                                # Extract date part only (remove time component)
+                                # Also validate date is within SQL Server DATE range (0001-01-01 to 9999-12-31)
+                                if pd.isna(val) or val is None:
+                                    val = None
+                                else:
+                                    # Get date part
+                                    date_val = val.date()
+                                    # Validate date range for SQL Server DATE type
+                                    min_date = date_type(1, 1, 1)  # SQL Server DATE minimum
+                                    max_date = date_type(9999, 12, 31)  # SQL Server DATE maximum
+                                    if min_date <= date_val <= max_date:
+                                        val = date_val
+                                    else:
+                                        # Date out of range - set to None
+                                        print(f"Warning: Date out of range for '{col_name}': {date_val}, setting to NULL")
+                                        val = None
+                            except (ValueError, OverflowError, AttributeError) as e:
+                                # Invalid date - set to None
+                                print(f"Warning: Invalid date for '{col_name}': {val}, error: {e}, setting to NULL")
+                                val = None
+                        elif isinstance(val, (pd.Timedelta, type(pd.NaT))):
+                            # NaT or Timedelta - set to None
+                            val = None
+                        elif hasattr(val, 'date'):
+                            # Python datetime object - extract date part
+                            try:
+                                date_val = val.date()
+                                min_date = date_type(1, 1, 1)
+                                max_date = date_type(9999, 12, 31)
+                                if min_date <= date_val <= max_date:
+                                    val = date_val
+                                else:
+                                    print(f"Warning: Date out of range for '{col_name}': {date_val}, setting to NULL")
+                                    val = None
+                            except (ValueError, OverflowError, AttributeError) as e:
+                                print(f"Warning: Invalid date for '{col_name}': {val}, error: {e}, setting to NULL")
+                                val = None
+                        elif isinstance(val, str) and val.strip():
+                            # String value - try to parse and convert to date
+                            try:
+                                # Try to parse the string as a date/datetime
+                                parsed = pd.to_datetime(val, errors='raise')
+                                if pd.isna(parsed):
+                                    val = None
+                                else:
+                                    date_val = parsed.date()
+                                    min_date = date_type(1, 1, 1)
+                                    max_date = date_type(9999, 12, 31)
+                                    if min_date <= date_val <= max_date:
+                                        val = date_val
+                                    else:
+                                        print(f"Warning: Date out of range for '{col_name}': {date_val}, setting to NULL")
+                                        val = None
+                            except (ValueError, OverflowError, AttributeError, TypeError) as e:
+                                print(f"Warning: Could not parse date string for '{col_name}': '{val}', error: {e}, setting to NULL")
+                                val = None
+                    
+                    # Handle DATETIME columns - ensure they're valid datetime objects
+                    # DATETIME columns keep time component, but need to be valid Python datetime objects
+                    elif col_name in col_is_datetime and col_is_datetime[col_name]:
+                        if isinstance(val, pd.Timestamp):
+                            # Check if it's NaT
+                            if pd.isna(val):
+                                val = None
+                            else:
+                                # Convert to Python datetime for pyodbc compatibility
+                                try:
+                                    # Validate datetime is within SQL Server range
+                                    # SQL Server DATETIME: 1753-01-01 to 9999-12-31
+                                    # SQL Server DATETIME2: 0001-01-01 to 9999-12-31
+                                    min_datetime = pd.Timestamp('1753-01-01')  # Conservative minimum
+                                    max_datetime = pd.Timestamp('9999-12-31 23:59:59')
+                                    if min_datetime <= val <= max_datetime:
+                                        # Convert to Python datetime
+                                        val = val.to_pydatetime()
+                                    else:
+                                        print(f"Warning: Datetime out of range for '{col_name}': {val}, setting to NULL")
+                                        val = None
+                                except (ValueError, OverflowError, AttributeError) as e:
+                                    print(f"Warning: Invalid datetime for '{col_name}': {val}, error: {e}, setting to NULL")
+                                    val = None
+                        elif isinstance(val, (pd.Timedelta, type(pd.NaT))):
+                            # NaT or Timedelta - set to None
+                            val = None
+                        elif isinstance(val, str) and val.strip():
+                            # String value - try to parse as datetime
+                            try:
+                                parsed = pd.to_datetime(val, errors='raise')
+                                if pd.isna(parsed):
+                                    val = None
+                                else:
+                                    min_datetime = pd.Timestamp('1753-01-01')
+                                    max_datetime = pd.Timestamp('9999-12-31 23:59:59')
+                                    if min_datetime <= parsed <= max_datetime:
+                                        val = parsed.to_pydatetime()
+                                    else:
+                                        print(f"Warning: Datetime out of range for '{col_name}': {parsed}, setting to NULL")
+                                        val = None
+                            except (ValueError, OverflowError, AttributeError, TypeError) as e:
+                                print(f"Warning: Could not parse datetime string for '{col_name}': '{val}', error: {e}, setting to NULL")
+                                val = None
                     
                     # Truncate string values if they exceed column max length
                     if isinstance(val, str) and col_name in col_max_lengths:
