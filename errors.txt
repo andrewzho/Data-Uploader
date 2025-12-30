@@ -1,4 +1,16 @@
-Upload failed: Unknown object type numpy.int64 during describe
+[2025-12-30 15:19:23] Processing NY Proton Daily Transactions 20190826-20251130.xlsx (188.3 MB)...
+[2025-12-30 15:19:23]   Using CHUNKED PROCESSING for large file (188.3 MB)...
+[2025-12-30 15:19:23]   This reads and uploads in chunks of 50,000 rows
+[2025-12-30 15:19:23]   This avoids loading the entire file into memory at once
+[2025-12-30 15:19:24]   Analyzing file structure...
+[2025-12-30 15:19:24]   File has 977,492 rows, 49 columns
+[2025-12-30 15:19:24]   Cleared existing data from table
+[2025-12-30 15:19:24]   Starting chunked processing (reading 50,000 rows at a time)...
+[2025-12-30 15:19:24]   Reading chunk 1 (rows 2-50001)...
+[2025-12-30 15:19:50]   ✗ Error processing chunk 1: ('22008', '[22008] [Microsoft][ODBC Driver 17 for SQL Server]Datetime field overflow (0) (SQLExecute)')
+[2025-12-30 15:19:50] ✗ Upload failed!
+[2025-12-30 15:19:50]   Error: 22008
+[2025-12-30 15:19:50]   Check the console/terminal for detailed error information.
 
 ================================================================================
 UPLOAD ERROR - Detailed Information
@@ -10,14 +22,14 @@ Total rows attempted: 50000
 --- Error Information ---
 
 Error Message:
-  Unknown object type numpy.int64 during describe
+  22008
 
 --- Full Exception Details (for debugging) ---
-  Exception Type: ProgrammingError
-  Exception String: ('Unknown object type numpy.int64 during describe', 'HY000')
+  Exception Type: DataError
+  Exception String: ('22008', '[22008] [Microsoft][ODBC Driver 17 for SQL Server]Datetime field overflow (0) (SQLExecute)')
   Exception Args (2):
-    [0]: 'Unknown object type numpy.int64 during describe'
-    [1]: 'HY000'
+    [0]: '22008'
+    [1]: '[22008] [Microsoft][ODBC Driver 17 for SQL Server]Datetime field overflow (0) (SQLExecute)'
 
 --- Table Schema ---
   [PaymentDateUpdated] date (max: 3)
@@ -137,7 +149,7 @@ Columns in DataFrame (49):
     [PatientNumber]: 86SYN10421 (str)
     [PatientFullName]: Benitez, Gloria F. (str)
     [FromDOS]: 2019-09-17 00:00:00 (Timestamp)
-    [Voucher]: 2240 (int64)
+    [Voucher]: 2240 (int)
     [BillDate]: None (NoneType)
     [ReBillDate]: None (NoneType)
     [BillingProvider]: PRESS, ROBERT (str)
@@ -188,7 +200,7 @@ Columns in DataFrame (49):
     [PatientNumber]: 86SYN10412 (str)
     [PatientFullName]: Zullo- Phillips, Rita (str)
     [FromDOS]: 2019-09-23 00:00:00 (Timestamp)
-    [Voucher]: 2760 (int64)
+    [Voucher]: 2760 (int)
     [BillDate]: None (NoneType)
     [ReBillDate]: None (NoneType)
     [BillingProvider]: CHOI, JEHEE (str)
@@ -239,7 +251,7 @@ Columns in DataFrame (49):
     [PatientNumber]: 86160 (str)
     [PatientFullName]: Ruggiero, Frank n. (str)
     [FromDOS]: 2019-09-25 00:00:00 (Timestamp)
-    [Voucher]: 4080 (int64)
+    [Voucher]: 4080 (int)
     [BillDate]: None (NoneType)
     [ReBillDate]: None (NoneType)
     [BillingProvider]: CHOI, JEHEE (str)
