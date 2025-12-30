@@ -270,10 +270,11 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
             col_data_types[col_name] = sql_type.lower()
     
     # Convert DataFrame to list of tuples, converting pandas NA/NaN to None for SQL Server
+    # Use itertuples() instead of iterrows() to better preserve data types, especially booleans
     data = []
-    for _, row in df.iterrows():
+    for row_tuple in df.itertuples(index=False):
         row_data = []
-        for i, val in enumerate(row):
+        for i, val in enumerate(row_tuple):
             col_name = cols[i]
             # Special handling for BIT columns - ensure True/False are preserved
             if col_name in col_data_types and 'bit' in col_data_types[col_name]:
@@ -281,21 +282,20 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
                 if pd.isna(val):
                     row_data.append(None)
                 else:
-                    # Explicitly preserve True/False - don't convert to 1/0
-                    # Check for pandas boolean types and Python bool
+                    # Force conversion to Python bool to preserve True/False
+                    # iterrows/itertuples might convert to int, so explicitly convert back
                     if isinstance(val, bool):
-                        # Python bool - keep as is (True/False)
+                        # Already a bool - keep as is
                         row_data.append(val)
-                    elif hasattr(pd, 'BooleanDtype') and isinstance(df[col_name].dtype, pd.BooleanDtype):
-                        # Pandas nullable boolean - extract as bool
-                        row_data.append(bool(val))
                     elif isinstance(val, (int, float)) and val in (0, 1):
-                        # If somehow we got 1/0, convert back to True/False
-                        row_data.append(bool(val))
+                        # Convert 1/0 back to True/False
+                        row_data.append(True if val == 1 else False)
                     else:
-                        # Fallback: try to convert to bool
+                        # Try to convert to bool
                         try:
-                            row_data.append(bool(val))
+                            # Use explicit bool() conversion to ensure True/False
+                            bool_val = bool(val)
+                            row_data.append(bool_val)
                         except:
                             row_data.append(None)
             else:
@@ -311,6 +311,29 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
                             print(f"Warning: Truncated '{col_name}' value (length {len(val)} > {max_len})")
                     row_data.append(val)
         data.append(tuple(row_data))
+    
+    # Final check: Ensure BIT columns are True/False, not 1/0
+    # This is a safety check in case any values slipped through as integers
+    if table_cols:
+        for col_name, sql_type, _ in table_cols:
+            if 'bit' in sql_type.lower() and col_name in cols:
+                col_idx = cols.index(col_name)
+                # Rebuild data list with corrected boolean values
+                corrected_data = []
+                for row_data in data:
+                    if col_idx < len(row_data):
+                        val = row_data[col_idx]
+                        if isinstance(val, (int, float)) and val in (0, 1):
+                            # Convert 1/0 to True/False
+                            row_data_list = list(row_data)
+                            row_data_list[col_idx] = True if val == 1 else False
+                            corrected_data.append(tuple(row_data_list))
+                        else:
+                            corrected_data.append(row_data)
+                    else:
+                        corrected_data.append(row_data)
+                data = corrected_data
+                break  # Only need to check once per column
     
     cursor.fast_executemany = True
     
