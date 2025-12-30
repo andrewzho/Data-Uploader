@@ -275,22 +275,33 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
         row_data = []
         for i, val in enumerate(row):
             col_name = cols[i]
-            # Handle pandas NA (from nullable dtypes like Int64, boolean, string)
-            if pd.isna(val):
-                row_data.append(None)
-            else:
-                # Special handling for BIT columns - keep as True/False
-                if col_name in col_data_types and 'bit' in col_data_types[col_name]:
-                    # Keep as Python bool (True/False) - pyodbc handles conversion to SQL Server BIT
-                    # None/NA values remain None (NULL in SQL)
+            # Special handling for BIT columns - ensure True/False are preserved
+            if col_name in col_data_types and 'bit' in col_data_types[col_name]:
+                # Handle pandas NA/NaN first
+                if pd.isna(val):
+                    row_data.append(None)
+                else:
+                    # Explicitly preserve True/False - don't convert to 1/0
+                    # Check for pandas boolean types and Python bool
                     if isinstance(val, bool):
+                        # Python bool - keep as is (True/False)
                         row_data.append(val)
-                    elif pd.isna(val):
-                        row_data.append(None)
+                    elif hasattr(pd, 'BooleanDtype') and isinstance(df[col_name].dtype, pd.BooleanDtype):
+                        # Pandas nullable boolean - extract as bool
+                        row_data.append(bool(val))
+                    elif isinstance(val, (int, float)) and val in (0, 1):
+                        # If somehow we got 1/0, convert back to True/False
+                        row_data.append(bool(val))
                     else:
-                        # Shouldn't happen if prepare_dataframe_for_table worked correctly,
-                        # but handle edge cases
-                        row_data.append(None)
+                        # Fallback: try to convert to bool
+                        try:
+                            row_data.append(bool(val))
+                        except:
+                            row_data.append(None)
+            else:
+                # Handle pandas NA (from nullable dtypes like Int64, boolean, string)
+                if pd.isna(val):
+                    row_data.append(None)
                 else:
                     # Truncate string values if they exceed column max length
                     if isinstance(val, str) and col_name in col_max_lengths:
@@ -736,11 +747,11 @@ def prepare_dataframe_for_table(df: 'pd.DataFrame', table_cols, filename=None):
                         return False
                     else:
                         return pd.NA
-                # Handle string representations
+                # Handle string representations (case-insensitive)
                 v_str = str(v).strip().lower()
-                if v_str in ('1', 'true', 'yes', 'y', 't'):
+                if v_str in ('1', 'true', 'yes', 'y', 't', 'on'):
                     return True
-                elif v_str in ('0', 'false', 'no', 'n', 'f'):
+                elif v_str in ('0', 'false', 'no', 'n', 'f', 'off', ''):
                     return False
                 # Default to NULL for unrecognized values (empty strings already handled above)
                 return pd.NA
