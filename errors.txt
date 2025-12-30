@@ -1,68 +1,291 @@
-SELECT TOP (1000) [PaymentDateUpdated]
-      ,[PaymentDateVoided]
-      ,[VoucherDateUpdated]
-      ,[VoucherDateVoided]
-      ,[PracticeCompanyNumber]
-      ,[PracticeName]
-      ,[DepartmentAbv]
-      ,[DepartmentDescription]
-      ,[AccountType]
-      ,[InsuranceAbv]
-      ,[InsuranceName]
-      ,[PatientNumber]
-      ,[PatientFullName]
-      ,[FromDOS]
-      ,[Voucher]
-      ,[BillDate]
-      ,[ReBillDate]
-      ,[BillingProvider]
-      ,[NPI]
-      ,[PatientSubscriberID]
-      ,[ProcedureCode]
-      ,[ProcedureDescription]
-      ,[Modifier]
-      ,[DiagnosisCode]
-      ,[WorkRVU]
-      ,[PERVU]
-      ,[MPRVU]
-      ,[Units]
-      ,[Charges]
-      ,[PersonalPayments]
-      ,[InsurancePayments]
-      ,[IntlPayments]
-      ,[ContractualAdjustment]
-      ,[Charity]
-      ,[Refunds]
-      ,[BalTransFromTiger]
-      ,[IntlAdjustment]
-      ,[Bankruptcy]
-      ,[PatientBalanceDeemedUncollectible]
-      ,[CharityWriteOff]
-      ,[IndigentCharity]
-      ,[BundledNCCIEdit]
-      ,[ChargeError]
-      ,[GlobalPeriodNotBillable]
-      ,[AppealsExhaustedNotMedNecessary]
-      ,[ChargesNotReceivedfromSiteTimely]
-      ,[DeceasedPatient]
-      ,[FinancialHardship]
-      ,[G6017NotCovered]
-      ,[MUEMaxUnitsExceeded]
-      ,[NoAuthorizationObtained]
-      ,[NoncoveredService]
-      ,[NoTransferAgreementInpat]
-      ,[OutofNetwork]
-      ,[PromptPayAdjustment]
-      ,[SmallBalanceAdjustment]
-      ,[RefundExceedsRecoupPeriod]
-      ,[CollectionAgencyPayments]
-      ,[CollectionAgencyRefunds]
-      ,[CollectionAgencyTransfers]
-      ,[CollectionAgencyAdjustment]
-      ,[CollectionAgencyFeeAdjustment]
-      ,[DateRan]
-  FROM [DataCleanup].[dbo].[TransactionsRaw]
+Upload failed: Unknown object type numpy.int64 during describe
 
+================================================================================
+UPLOAD ERROR - Detailed Information
+================================================================================
 
+Table: [DataCleanup].[dbo].[TransactionsRaw]
+Total rows attempted: 50000
 
-PaymentDateUpdated	PaymentDateVoided	VoucherDateUpdated	VoucherDateVoided	PracticeCompanyNumber	DepartmentAbv	AccountType	InsuranceAbv	InsuranceName	PatientNumber	PatientFullName	FromDOS	Voucher	BillDate	ReBillDate	BillingProvider	NPI	PatientSubscriberID	ProcedureCode	ProcedureDescription	Modifier	DiagnosisCode	WorkRVU	PERVU	MPRVU	Units	Charges	Payments	Adjustments	Refunds	PersonalPayments	InsurancePayments	IntlPayments	AppealsExhaustedNotMedNecessary	Charity	CharityWriteOff	ContractualAdjustment	DeceasedPatient	FinancialHardship	IntlAdjustment	NoAuthorizationObtained	NoncoveredService	NoTransferAgreementInpat	OtherAdjustments	OutofNetwork	PatientBalanceDeemedUncollectible	PromptPayAdjustment	RefundExceedsRecoupPeriod	DateRan
+--- Error Information ---
+
+Error Message:
+  Unknown object type numpy.int64 during describe
+
+--- Full Exception Details (for debugging) ---
+  Exception Type: ProgrammingError
+  Exception String: ('Unknown object type numpy.int64 during describe', 'HY000')
+  Exception Args (2):
+    [0]: 'Unknown object type numpy.int64 during describe'
+    [1]: 'HY000'
+
+--- Table Schema ---
+  [PaymentDateUpdated] date (max: 3)
+  [PaymentDateVoided] date (max: 3)
+  [VoucherDateUpdated] date (max: 3)
+  [VoucherDateVoided] date (max: 3)
+  [PracticeCompanyNumber] float (max: 8)
+  [DepartmentAbv] nvarchar (max: 255)
+  [AccountType] nvarchar (max: 255)
+  [InsuranceAbv] nvarchar (max: 255)
+  [InsuranceName] nvarchar (max: 255)
+  [PatientNumber] nvarchar (max: 255)
+  [PatientFullName] nvarchar (max: 255)
+  [FromDOS] date (max: 3)
+  [Voucher] int (max: 4)
+  [BillDate] date (max: 3)
+  [ReBillDate] date (max: 3)
+  [BillingProvider] nvarchar (max: 255)
+  [NPI] float (max: 8)
+  [PatientSubscriberID] nvarchar (max: 255)
+  [ProcedureCode] nvarchar (max: 255)
+  [ProcedureDescription] nvarchar (max: 255)
+  [Modifier] nvarchar (max: 255)
+  [DiagnosisCode] nvarchar (max: 255)
+  [WorkRVU] float (max: 8)
+  [PERVU] float (max: 8)
+  [MPRVU] float (max: 8)
+  [Units] float (max: 8)
+  [Charges] money (max: 8)
+  [Payments] money (max: 8)
+  [Adjustments] money (max: 8)
+  [Refunds] money (max: 8)
+  [PersonalPayments] money (max: 8)
+  [InsurancePayments] money (max: 8)
+  [IntlPayments] money (max: 8)
+  [AppealsExhaustedNotMedNecessary] money (max: 8)
+  [Charity] money (max: 8)
+  [CharityWriteOff] money (max: 8)
+  [ContractualAdjustment] money (max: 8)
+  [DeceasedPatient] money (max: 8)
+  [FinancialHardship] money (max: 8)
+  [IntlAdjustment] money (max: 8)
+  [NoAuthorizationObtained] money (max: 8)
+  [NoncoveredService] money (max: 8)
+  [NoTransferAgreementInpat] money (max: 8)
+  [OtherAdjustments] money (max: 8)
+  [OutofNetwork] money (max: 8)
+  [PatientBalanceDeemedUncollectible] money (max: 8)
+  [PromptPayAdjustment] money (max: 8)
+  [RefundExceedsRecoupPeriod] money (max: 8)
+  [DateRan] date (max: 3)
+
+--- DataFrame Information ---
+Columns in DataFrame (49):
+  1. PaymentDateUpdated (sample type: Timestamp)
+  2. PaymentDateVoided (sample type: Timestamp)
+  3. VoucherDateUpdated (sample type: Timestamp)
+  4. VoucherDateVoided
+  5. PracticeCompanyNumber (sample type: float64)
+  6. DepartmentAbv (sample type: str)
+  7. AccountType (sample type: str)
+  8. InsuranceAbv (sample type: str)
+  9. InsuranceName (sample type: str)
+  10. PatientNumber (sample type: str)
+  11. PatientFullName (sample type: str)
+  12. FromDOS (sample type: Timestamp)
+  13. Voucher (sample type: int64)
+  14. BillDate (sample type: Timestamp)
+  15. ReBillDate (sample type: Timestamp)
+  16. BillingProvider (sample type: str)
+  17. NPI (sample type: float64)
+  18. PatientSubscriberID (sample type: str)
+  19. ProcedureCode (sample type: str)
+  20. ProcedureDescription (sample type: str)
+  21. Modifier (sample type: str)
+  22. DiagnosisCode (sample type: str)
+  23. WorkRVU (sample type: float64)
+  24. PERVU (sample type: float64)
+  25. MPRVU (sample type: float64)
+  26. Units (sample type: float64)
+  27. Charges (sample type: float64)
+  28. Payments (sample type: float64)
+  29. Adjustments (sample type: float64)
+  30. Refunds (sample type: float64)
+  31. PersonalPayments (sample type: float64)
+  32. InsurancePayments (sample type: float64)
+  33. IntlPayments (sample type: float64)
+  34. AppealsExhaustedNotMedNecessary (sample type: float64)
+  35. Charity (sample type: float64)
+  36. CharityWriteOff (sample type: float64)
+  37. ContractualAdjustment (sample type: float64)
+  38. DeceasedPatient (sample type: float64)
+  39. FinancialHardship (sample type: float64)
+  40. IntlAdjustment (sample type: float64)
+  41. NoAuthorizationObtained (sample type: float64)
+  42. NoncoveredService (sample type: float64)
+  43. NoTransferAgreementInpat (sample type: float64)
+  44. OtherAdjustments (sample type: float64)
+  45. OutofNetwork (sample type: float64)
+  46. PatientBalanceDeemedUncollectible (sample type: float64)
+  47. PromptPayAdjustment (sample type: float64)
+  48. RefundExceedsRecoupPeriod (sample type: float64)
+  49. DateRan (sample type: Timestamp)
+
+--- Sample Data (First 3 Rows) ---
+
+  Row 1:
+    [PaymentDateUpdated]: None (NoneType)
+    [PaymentDateVoided]: None (NoneType)
+    [VoucherDateUpdated]: 2019-09-25 00:00:00 (Timestamp)
+    [VoucherDateVoided]: None (NoneType)
+    [PracticeCompanyNumber]: 86.0 (float)
+    [DepartmentAbv]: OTHER    (str)
+    [AccountType]: STANDARD (str)
+    [InsuranceAbv]:          (str)
+    [InsuranceName]: None (NoneType)
+    [PatientNumber]: 86SYN10421 (str)
+    [PatientFullName]: Benitez, Gloria F. (str)
+    [FromDOS]: 2019-09-17 00:00:00 (Timestamp)
+    [Voucher]: 2240 (int64)
+    [BillDate]: None (NoneType)
+    [ReBillDate]: None (NoneType)
+    [BillingProvider]: PRESS, ROBERT (str)
+    [NPI]: 1427477231.0 (float)
+    [PatientSubscriberID]: None (NoneType)
+    [ProcedureCode]: END (str)
+    [ProcedureDescription]: End of Treatment (str)
+    [Modifier]: None (NoneType)
+    [DiagnosisCode]: C50.412    (str)
+    [WorkRVU]: 0.0 (float)
+    [PERVU]: 0.0 (float)
+    [MPRVU]: 0.0 (float)
+    [Units]: 1.0 (float)
+    [Charges]: 0.0 (float)
+    [Payments]: 0.0 (float)
+    [Adjustments]: 0.0 (float)
+    [Refunds]: 0.0 (float)
+    [PersonalPayments]: 0.0 (float)
+    [InsurancePayments]: 0.0 (float)
+    [IntlPayments]: 0.0 (float)
+    [AppealsExhaustedNotMedNecessary]: 0.0 (float)
+    [Charity]: 0.0 (float)
+    [CharityWriteOff]: 0.0 (float)
+    [ContractualAdjustment]: 0.0 (float)
+    [DeceasedPatient]: 0.0 (float)
+    [FinancialHardship]: 0.0 (float)
+    [IntlAdjustment]: 0.0 (float)
+    [NoAuthorizationObtained]: 0.0 (float)
+    [NoncoveredService]: 0.0 (float)
+    [NoTransferAgreementInpat]: 0.0 (float)
+    [OtherAdjustments]: 0.0 (float)
+    [OutofNetwork]: 0.0 (float)
+    [PatientBalanceDeemedUncollectible]: 0.0 (float)
+    [PromptPayAdjustment]: 0.0 (float)
+    [RefundExceedsRecoupPeriod]: 0.0 (float)
+    [DateRan]: 2025-12-01 06:02:00 (Timestamp)
+
+  Row 2:
+    [PaymentDateUpdated]: None (NoneType)
+    [PaymentDateVoided]: None (NoneType)
+    [VoucherDateUpdated]: 2019-10-01 00:00:00 (Timestamp)
+    [VoucherDateVoided]: None (NoneType)
+    [PracticeCompanyNumber]: 86.0 (float)
+    [DepartmentAbv]: OTHER    (str)
+    [AccountType]: STANDARD (str)
+    [InsuranceAbv]:          (str)
+    [InsuranceName]: None (NoneType)
+    [PatientNumber]: 86SYN10412 (str)
+    [PatientFullName]: Zullo- Phillips, Rita (str)
+    [FromDOS]: 2019-09-23 00:00:00 (Timestamp)
+    [Voucher]: 2760 (int64)
+    [BillDate]: None (NoneType)
+    [ReBillDate]: None (NoneType)
+    [BillingProvider]: CHOI, JEHEE (str)
+    [NPI]: 1619260056.0 (float)
+    [PatientSubscriberID]: None (NoneType)
+    [ProcedureCode]: END (str)
+    [ProcedureDescription]: End of Treatment (str)
+    [Modifier]: None (NoneType)
+    [DiagnosisCode]: C50.512    (str)
+    [WorkRVU]: 0.0 (float)
+    [PERVU]: 0.0 (float)
+    [MPRVU]: 0.0 (float)
+    [Units]: 1.0 (float)
+    [Charges]: 0.0 (float)
+    [Payments]: 0.0 (float)
+    [Adjustments]: 0.0 (float)
+    [Refunds]: 0.0 (float)
+    [PersonalPayments]: 0.0 (float)
+    [InsurancePayments]: 0.0 (float)
+    [IntlPayments]: 0.0 (float)
+    [AppealsExhaustedNotMedNecessary]: 0.0 (float)
+    [Charity]: 0.0 (float)
+    [CharityWriteOff]: 0.0 (float)
+    [ContractualAdjustment]: 0.0 (float)
+    [DeceasedPatient]: 0.0 (float)
+    [FinancialHardship]: 0.0 (float)
+    [IntlAdjustment]: 0.0 (float)
+    [NoAuthorizationObtained]: 0.0 (float)
+    [NoncoveredService]: 0.0 (float)
+    [NoTransferAgreementInpat]: 0.0 (float)
+    [OtherAdjustments]: 0.0 (float)
+    [OutofNetwork]: 0.0 (float)
+    [PatientBalanceDeemedUncollectible]: 0.0 (float)
+    [PromptPayAdjustment]: 0.0 (float)
+    [RefundExceedsRecoupPeriod]: 0.0 (float)
+    [DateRan]: 2025-12-01 06:02:00 (Timestamp)
+
+  Row 3:
+    [PaymentDateUpdated]: None (NoneType)
+    [PaymentDateVoided]: None (NoneType)
+    [VoucherDateUpdated]: 2019-10-04 00:00:00 (Timestamp)
+    [VoucherDateVoided]: None (NoneType)
+    [PracticeCompanyNumber]: 86.0 (float)
+    [DepartmentAbv]: OTHER    (str)
+    [AccountType]: DECEASED (str)
+    [InsuranceAbv]:          (str)
+    [InsuranceName]: None (NoneType)
+    [PatientNumber]: 86160 (str)
+    [PatientFullName]: Ruggiero, Frank n. (str)
+    [FromDOS]: 2019-09-25 00:00:00 (Timestamp)
+    [Voucher]: 4080 (int64)
+    [BillDate]: None (NoneType)
+    [ReBillDate]: None (NoneType)
+    [BillingProvider]: CHOI, JEHEE (str)
+    [NPI]: 1619260056.0 (float)
+    [PatientSubscriberID]: None (NoneType)
+    [ProcedureCode]: END (str)
+    [ProcedureDescription]: End of Treatment (str)
+    [Modifier]: None (NoneType)
+    [DiagnosisCode]: C31.0      (str)
+    [WorkRVU]: 0.0 (float)
+    [PERVU]: 0.0 (float)
+    [MPRVU]: 0.0 (float)
+    [Units]: 1.0 (float)
+    [Charges]: 0.0 (float)
+    [Payments]: 0.0 (float)
+    [Adjustments]: 0.0 (float)
+    [Refunds]: 0.0 (float)
+    [PersonalPayments]: 0.0 (float)
+    [InsurancePayments]: 0.0 (float)
+    [IntlPayments]: 0.0 (float)
+    [AppealsExhaustedNotMedNecessary]: 0.0 (float)
+    [Charity]: 0.0 (float)
+    [CharityWriteOff]: 0.0 (float)
+    [ContractualAdjustment]: 0.0 (float)
+    [DeceasedPatient]: 0.0 (float)
+    [FinancialHardship]: 0.0 (float)
+    [IntlAdjustment]: 0.0 (float)
+    [NoAuthorizationObtained]: 0.0 (float)
+    [NoncoveredService]: 0.0 (float)
+    [NoTransferAgreementInpat]: 0.0 (float)
+    [OtherAdjustments]: 0.0 (float)
+    [OutofNetwork]: 0.0 (float)
+    [PatientBalanceDeemedUncollectible]: 0.0 (float)
+    [PromptPayAdjustment]: 0.0 (float)
+    [RefundExceedsRecoupPeriod]: 0.0 (float)
+    [DateRan]: 2025-12-01 06:02:00 (Timestamp)
+
+--- Potential Issues ---
+  ⚠ Column 'PaymentDateUpdated' has 8752 NULL/empty values
+  ⚠ Column 'PaymentDateVoided' has 47412 NULL/empty values
+  ⚠ Column 'VoucherDateVoided' has 50000 NULL/empty values
+  ⚠ Column 'InsuranceName' has 6668 NULL/empty values
+  ⚠ Column 'BillDate' has 5356 NULL/empty values
+  ⚠ Column 'ReBillDate' has 33533 NULL/empty values
+  ⚠ Column 'NPI' has 1089 NULL/empty values
+  ⚠ Column 'PatientSubscriberID' has 6639 NULL/empty values
+  ⚠ Column 'Modifier' has 45689 NULL/empty values
+
+================================================================================
