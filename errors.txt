@@ -1,56 +1,122 @@
-Note: Auto-mapping Excel column 'Prim. Oncologist' to expected 'Prim# Oncologist'
+================================================================================
+UPLOAD ERROR - Detailed Information
+================================================================================
 
-===== UPLOAD ERROR =====
 Table: [DataCleanup].[dbo].[Fractions]
+Total rows attempted: 177210
 
-Expected columns from SQL Server table:
-  [ICD 10] nvarchar
-  [Activity Name] nvarchar
-  [Due Date] nvarchar
-  [Start Date] datetime
-  [Duration] nvarchar
+--- Error Information ---
+
+Error Message:
+
+
+--- Table Schema ---
+  [ICD 10] nvarchar (max: 255)
+  [Activity Name] nvarchar (max: 255)
+  [Due Date] nvarchar (max: 255)
+  [Start Date] datetime (max: 8)
+  [Duration] nvarchar (max: 255)
   [Note] nvarchar
-  [Status] nvarchar
-  [Prim# Oncologist] nvarchar
+  [Status] nvarchar (max: 255)
+  [Prim# Oncologist] nvarchar (max: 255)
   [Diagnosis] nvarchar
-  [Staff/Resource(s)] nvarchar
-  [Patient Name] nvarchar
-  [Patient ID1] nvarchar
-  [Created By] nvarchar
-  [Check-In] bit
-  [Questionnaire] nvarchar
-  [Priority] nvarchar
-  [Checklist] nvarchar
+  [Staff/Resource(s)] nvarchar (max: 255)
+  [Patient Name] nvarchar (max: 255)
+  [Patient ID1] nvarchar (max: 255)
+  [Created By] nvarchar (max: 255)
+  [Check-In] bit (max: 1)
+  [Questionnaire] nvarchar (max: 255)
+  [Priority] nvarchar (max: 255)
+  [Checklist] nvarchar (max: 255)
 
-Columns in DataFrame:
-  ICD 10
-  Activity Name
-  Due Date
-  Start Date
-  Duration
-  Note
-  Status
-  Prim# Oncologist
-  Diagnosis
-  Staff/Resource(s)
-  Patient Name
-  Patient ID1
-  Created By
-  Check-In
-  Questionnaire
-  Priority
-  Checklist
+--- DataFrame Information ---
+Columns in DataFrame (17):
+  1. ICD 10 (sample type: str)
+  2. Activity Name (sample type: str)
+  3. Due Date
+  4. Start Date (sample type: Timestamp)
+  5. Duration (sample type: str)
+  6. Note (sample type: str)
+  7. Status (sample type: str)
+  8. Prim# Oncologist (sample type: str)
+  9. Diagnosis (sample type: str)
+  10. Staff/Resource(s) (sample type: str)
+  11. Patient Name (sample type: str)
+  12. Patient ID1 (sample type: str)
+  13. Created By (sample type: str)
+  14. Check-In (sample type: bool_)
+  15. Questionnaire
+  16. Priority (sample type: str)
+  17. Checklist
 
-First few rows of data:
-  Row 0: ('D05.91', 'New Start Daily Treatment', None, Timestamp('2019-08-01 07:30:00'), '30', None, 'Open', 'Brian Yeh, MD', '6/24/2019, D05.91, Unspecified type of carcinoma in situ of right breast', 'GTR3', 'zz_Breast, zz_Test plan9 (zz45785612)', 'zz45785612', 'Christopher Ackerman', True, None, 'Medium', None)
-  Row 1: ('C34.12', 'New Start Daily Treatment', None, Timestamp('2019-08-01 08:00:00'), '30', None, 'Open', 'Nancy Lee, MD', '6/9/2019, C34.12, Malignant neoplasm of upper lobe, left bronchus or lung', 'GTR3', 'zz_Lung, zz_Test plan2 (zz98763617)', 'zz98763617', 'Christopher Ackerman', False, None, 'Medium', None)
-  Row 2: ('C61', 'New Start Daily Treatment', None, Timestamp('2019-08-01 08:30:00'), '30', None, 'Completed', 'Madhur Garg, MD', '6/9/2019, C61, Malignant neoplasm of prostate', 'GTR3', 'zz_Prostate, zz_Test plan7 (zz63409256)', 'zz63409256', 'Christopher Ackerman', True, None, 'Medium', None)
+--- Sample Data (First 3 Rows) ---
 
-SQL Error:
-========================
+  Row 1:
+    [ICD 10]: D05.91 (str)
+    [Activity Name]: New Start Daily Treatment (str)
+    [Due Date]: None (NoneType)
+    [Start Date]: 2019-08-01 07:30:00 (Timestamp)
+    [Duration]: 30 (str)
+    [Note]: None (NoneType)
+    [Status]: Open (str)
+    [Prim# Oncologist]: Brian Yeh, MD (str)
+    [Diagnosis]: 6/24/2019, D05.91, Unspecified type of carcinoma in situ of right breast (str)
+    [Staff/Resource(s)]: GTR3 (str)
+    [Patient Name]: zz_Breast, zz_Test plan9 (zz45785612) (str)
+    [Patient ID1]: zz45785612 (str)
+    [Created By]: Christopher Ackerman (str)
+    [Check-In]: True (bool)
+    [Questionnaire]: None (NoneType)
+    [Priority]: Medium (str)
+    [Checklist]: None (NoneType)
 
-Exception in Tkinter callback
-Traceback (most recent call last):
-  File "C:\Users\aho\AppData\Local\Programs\Python\Python38-32\lib\tkinter\__init__.py", line 1880, in __call__
-    try:
-KeyboardInterrupt
+  Row 2:
+    [ICD 10]: C34.12 (str)
+    [Activity Name]: New Start Daily Treatment (str)
+    [Due Date]: None (NoneType)
+    [Start Date]: 2019-08-01 08:00:00 (Timestamp)
+    [Duration]: 30 (str)
+    [Note]: None (NoneType)
+    [Status]: Open (str)
+    [Prim# Oncologist]: Nancy Lee, MD (str)
+    [Diagnosis]: 6/9/2019, C34.12, Malignant neoplasm of upper lobe, left bronchus or lung (str)
+    [Staff/Resource(s)]: GTR3 (str)
+    [Patient Name]: zz_Lung, zz_Test plan2 (zz98763617) (str)
+    [Patient ID1]: zz98763617 (str)
+    [Created By]: Christopher Ackerman (str)
+    [Check-In]: False (bool)
+    [Questionnaire]: None (NoneType)
+    [Priority]: Medium (str)
+    [Checklist]: None (NoneType)
+
+  Row 3:
+    [ICD 10]: C61 (str)
+    [Activity Name]: New Start Daily Treatment (str)
+    [Due Date]: None (NoneType)
+    [Start Date]: 2019-08-01 08:30:00 (Timestamp)
+    [Duration]: 30 (str)
+    [Note]: None (NoneType)
+    [Status]: Completed (str)
+    [Prim# Oncologist]: Madhur Garg, MD (str)
+    [Diagnosis]: 6/9/2019, C61, Malignant neoplasm of prostate (str)
+    [Staff/Resource(s)]: GTR3 (str)
+    [Patient Name]: zz_Prostate, zz_Test plan7 (zz63409256) (str)
+    [Patient ID1]: zz63409256 (str)
+    [Created By]: Christopher Ackerman (str)
+    [Check-In]: True (bool)
+    [Questionnaire]: None (NoneType)
+    [Priority]: Medium (str)
+    [Checklist]: None (NoneType)
+
+--- Potential Issues ---
+  ⚠ Column 'ICD 10' has 20487 NULL/empty values
+  ⚠ Column 'Due Date' has 177210 NULL/empty values
+  ⚠ Column 'Note' has 11272 NULL/empty values
+  ⚠ Column 'Prim# Oncologist' has 17012 NULL/empty values
+  ⚠ Column 'Diagnosis' has 20487 NULL/empty values
+  ⚠ Column 'Patient Name' has 10991 NULL/empty values
+  ⚠ Column 'Patient ID1' has 10991 NULL/empty values
+  ⚠ Column 'Questionnaire' has 177210 NULL/empty values
+  ⚠ Column 'Checklist' has 177210 NULL/empty values
+
+================================================================================
