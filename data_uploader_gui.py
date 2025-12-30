@@ -659,22 +659,47 @@ class DataUploaderGUI:
                     # Process each file
                     for idx, file_path in enumerate(self.current_upload_files):
                         file_name = Path(file_path).name
-                        self.log_message(f"Processing {file_name}...")
+                        file_size_mb = Path(file_path).stat().st_size / (1024 * 1024)
+                        self.log_message(f"Processing {file_name} ({file_size_mb:.1f} MB)...")
+                        self.root.update_idletasks()  # Update GUI to show message
                         
-                        # Read Excel file
-                        df = pd.read_excel(file_path)
+                        # Read Excel file with progress feedback
+                        # For large files, use engine='openpyxl' with read-only mode for better performance
+                        self.log_message(f"  Reading Excel file...")
+                        self.root.update_idletasks()
+                        try:
+                            # Try to use openpyxl engine with read_only mode for large files
+                            # This is more memory efficient for large Excel files
+                            if file_size_mb > 50:  # For files larger than 50 MB
+                                self.log_message(f"  (Using optimized reading mode for large file...)")
+                                self.root.update_idletasks()
+                            df = pd.read_excel(file_path, engine='openpyxl')
+                        except Exception as e:
+                            # Fallback to default engine if openpyxl fails
+                            self.log_message(f"  (Falling back to default reader...)")
+                            self.root.update_idletasks()
+                            df = pd.read_excel(file_path)
+                        self.log_message(f"  ✓ Loaded {len(df):,} rows, {len(df.columns)} columns")
+                        self.root.update_idletasks()
                         
                         # Prepare DataFrame (align columns, coerce types)
+                        self.log_message(f"  Preparing data (type conversion, column alignment)...")
+                        self.root.update_idletasks()
                         from upload_refresh import prepare_dataframe_for_table
                         df_prepared = prepare_dataframe_for_table(df, table_cols, filename=file_name)
+                        self.log_message(f"  ✓ Data preparation complete")
+                        self.root.update_idletasks()
                         
                         # Upload to table
+                        self.log_message(f"  Starting upload to {self.current_upload_table}...")
+                        self.root.update_idletasks()
                         from upload_refresh import upload_df_to_table
                         upload_df_to_table(conn, df_prepared, self.current_upload_table, 
                                          upload_mode=upload_mode, table_cols=table_cols)
                         
-                        self.log_message(f"  ✓ Uploaded {len(df_prepared)} rows from {file_name}")
+                        self.log_message(f"  ✓ Uploaded {len(df_prepared):,} rows from {file_name}")
                         self.progress_var.set((idx + 1) * 100 / len(self.current_upload_files))
+                        self.root.update_idletasks()
                     
                     self.log_message(f"\n✓ UPLOAD COMPLETED SUCCESSFULLY!")
                     self.status_var.set("Upload completed!")

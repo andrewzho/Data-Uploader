@@ -271,7 +271,12 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
     
     # Convert DataFrame to list of tuples, converting pandas NA/NaN to None for SQL Server
     # Use itertuples() instead of iterrows() to better preserve data types, especially booleans
+    # This is more memory efficient and faster than iterrows()
+    total_rows = len(df)
+    if total_rows > 50000:
+        print(f"Converting {total_rows:,} rows to upload format...", end=' ', flush=True)
     data = []
+    rows_processed = 0
     for row_tuple in df.itertuples(index=False):
         row_data = []
         for i, val in enumerate(row_tuple):
@@ -311,6 +316,16 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
                             print(f"Warning: Truncated '{col_name}' value (length {len(val)} > {max_len})")
                     row_data.append(val)
         data.append(tuple(row_data))
+        rows_processed += 1
+        # Show progress for very large files
+        if total_rows > 50000 and rows_processed % 10000 == 0:
+            progress_pct = (rows_processed / total_rows) * 100
+            print(f"\rConverting {total_rows:,} rows to upload format... {rows_processed:,}/{total_rows:,} ({progress_pct:.1f}%)", end='', flush=True)
+    
+    if total_rows > 50000:
+        print()  # New line after progress updates
+    else:
+        print("✓", flush=True)
     
     # Final check: Ensure BIT columns are True/False, not 1/0
     # This is a safety check in case any values slipped through as integers
@@ -344,22 +359,25 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
     
     try:
         if total_rows > batch_size:
-            print(f"Large dataset detected ({total_rows:,} rows). Processing in batches of {batch_size:,}...")
+            print(f"Large dataset detected ({total_rows:,} rows). Processing in batches of {batch_size:,}...", flush=True)
             rows_uploaded = 0
+            total_batches = (total_rows + batch_size - 1) // batch_size
             for i in range(0, total_rows, batch_size):
                 batch = data[i:i + batch_size]
                 batch_num = (i // batch_size) + 1
-                total_batches = (total_rows + batch_size - 1) // batch_size
                 print(f"  Uploading batch {batch_num}/{total_batches} ({len(batch):,} rows)...", end=' ', flush=True)
                 cursor.executemany(sql, batch)
                 rows_uploaded += len(batch)
-                print(f"✓ ({rows_uploaded:,}/{total_rows:,} rows)")
+                progress_pct = (rows_uploaded / total_rows) * 100
+                print(f"✓ ({rows_uploaded:,}/{total_rows:,} rows, {progress_pct:.1f}%)", flush=True)
             conn.commit()
-            print(f"✓ All {total_rows:,} rows uploaded successfully!")
+            print(f"✓ All {total_rows:,} rows uploaded successfully!", flush=True)
         else:
             # Small dataset - upload all at once
+            print(f"Uploading {total_rows:,} rows...", end=' ', flush=True)
             cursor.executemany(sql, data)
             conn.commit()
+            print(f"✓ Complete!", flush=True)
     except Exception as e:
         # Extract detailed error information from pyodbc errors
         error_details = {}
