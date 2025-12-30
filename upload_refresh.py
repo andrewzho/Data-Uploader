@@ -320,7 +320,6 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
         if hasattr(e, 'args') and len(e.args) > 0:
             error_str = str(e.args[0]) if isinstance(e.args[0], str) else str(e)
             # Look for SQL Server error patterns like [42000] or (102)
-            import re
             sql_error_match = re.search(r'\[(\d+)\]', error_str)
             if sql_error_match:
                 error_details['sql_error_code'] = sql_error_match.group(1)
