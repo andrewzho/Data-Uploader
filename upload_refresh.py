@@ -279,11 +279,14 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
             if pd.isna(val):
                 row_data.append(None)
             else:
-                # Special handling for BIT columns - ensure proper boolean conversion
+                # Special handling for BIT columns - keep as True/False
                 if col_name in col_data_types and 'bit' in col_data_types[col_name]:
-                    # Convert to Python bool (True/False) or None for SQL Server BIT
+                    # Keep as Python bool (True/False) - pyodbc handles conversion to SQL Server BIT
+                    # None/NA values remain None (NULL in SQL)
                     if isinstance(val, bool):
                         row_data.append(val)
+                    elif pd.isna(val):
+                        row_data.append(None)
                     else:
                         # Shouldn't happen if prepare_dataframe_for_table worked correctly,
                         # but handle edge cases
