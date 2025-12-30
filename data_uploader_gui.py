@@ -684,9 +684,20 @@ class DataUploaderGUI:
                     conn.close()
                     
             except Exception as e:
-                self.log_message(f"✗ Upload failed: {e}")
+                # Extract more detailed error information
+                error_msg = str(e)
+                if hasattr(e, 'args') and len(e.args) > 0:
+                    if isinstance(e.args[0], tuple) and len(e.args[0]) >= 2:
+                        error_msg = f"{e.args[0][0]}: {e.args[0][1]}"
+                    elif isinstance(e.args[0], str):
+                        error_msg = e.args[0]
+                
+                # Log detailed error
+                self.log_message(f"✗ Upload failed!")
+                self.log_message(f"  Error: {error_msg}")
+                self.log_message(f"  Check the console/terminal for detailed error information.")
                 self.status_var.set("Upload failed!")
-                self.operation_queue.put(("error", f"Upload failed: {e}"))
+                self.operation_queue.put(("error", f"Upload failed: {error_msg}"))
         
         threading.Thread(target=upload, daemon=True).start()
     

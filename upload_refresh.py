@@ -303,22 +303,113 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
         cursor.executemany(sql, data)
         conn.commit()
     except Exception as e:
-        # If there's a truncation or type error, provide detailed info
+        # Extract detailed error information from pyodbc errors
+        error_details = {}
         error_msg = str(e)
-        print(f"\n===== UPLOAD ERROR =====")
-        print(f"Table: {table}")
-        print(f"\nExpected columns from SQL Server table:")
+        
+        # Try to extract pyodbc error details
+        if hasattr(e, 'args') and len(e.args) > 0:
+            if isinstance(e.args[0], tuple) and len(e.args[0]) >= 2:
+                # pyodbc error format: (error_code, error_message)
+                error_details['error_code'] = e.args[0][0] if len(e.args[0]) > 0 else None
+                error_details['error_message'] = e.args[0][1] if len(e.args[0]) > 1 else str(e)
+            else:
+                error_details['error_message'] = str(e.args[0]) if e.args else str(e)
+        
+        # Try to extract SQL Server error number and state if available
+        if hasattr(e, 'args') and len(e.args) > 0:
+            error_str = str(e.args[0]) if isinstance(e.args[0], str) else str(e)
+            # Look for SQL Server error patterns like [42000] or (102)
+            import re
+            sql_error_match = re.search(r'\[(\d+)\]', error_str)
+            if sql_error_match:
+                error_details['sql_error_code'] = sql_error_match.group(1)
+            
+            # Extract line number if mentioned
+            line_match = re.search(r'\((\d+)\)', error_str)
+            if line_match:
+                error_details['line_number'] = line_match.group(1)
+        
+        # Build comprehensive error message
+        print(f"\n{'='*80}")
+        print(f"UPLOAD ERROR - Detailed Information")
+        print(f"{'='*80}")
+        print(f"\nTable: {table}")
+        print(f"Total rows attempted: {len(data)}")
+        
+        # Show error details
+        print(f"\n--- Error Information ---")
+        if error_details.get('sql_error_code'):
+            print(f"SQL Server Error Code: {error_details['sql_error_code']}")
+        if error_details.get('error_code'):
+            print(f"ODBC Error Code: {error_details['error_code']}")
+        if error_details.get('line_number'):
+            print(f"SQL Line Number: {error_details['line_number']}")
+        
+        error_display = error_details.get('error_message', error_msg)
+        print(f"\nError Message:")
+        print(f"  {error_display}")
+        
+        # Show table schema
+        print(f"\n--- Table Schema ---")
         if table_cols:
-            for col_name, sql_type, _ in table_cols:
-                print(f"  [{col_name}] {sql_type}")
-        print(f"\nColumns in DataFrame:")
-        for col in cols:
-            print(f"  {col}")
-        print(f"\nFirst few rows of data:")
+            for col_name, sql_type, max_len in table_cols:
+                max_info = f" (max: {max_len})" if max_len else ""
+                print(f"  [{col_name}] {sql_type}{max_info}")
+        else:
+            print("  (Schema information not available)")
+        
+        # Show DataFrame columns and types
+        print(f"\n--- DataFrame Information ---")
+        print(f"Columns in DataFrame ({len(cols)}):")
+        for i, col in enumerate(cols):
+            # Try to get the data type of the first non-null value
+            dtype_info = ""
+            if not df.empty:
+                sample_val = df[col].dropna().iloc[0] if not df[col].dropna().empty else None
+                if sample_val is not None:
+                    dtype_info = f" (sample type: {type(sample_val).__name__})"
+            print(f"  {i+1}. {col}{dtype_info}")
+        
+        # Show sample data with better formatting
+        print(f"\n--- Sample Data (First 3 Rows) ---")
         for i, row in enumerate(data[:3]):
-            print(f"  Row {i}: {row}")
-        print(f"\nSQL Error: {error_msg}")
-        print(f"========================\n")
+            print(f"\n  Row {i+1}:")
+            for j, val in enumerate(row):
+                col_name = cols[j] if j < len(cols) else f"Column{j}"
+                # Truncate long values for display
+                val_str = str(val)
+                if len(val_str) > 100:
+                    val_str = val_str[:97] + "..."
+                val_type = type(val).__name__
+                print(f"    [{col_name}]: {val_str} ({val_type})")
+        
+        # Try to identify potential problematic values
+        print(f"\n--- Potential Issues ---")
+        issues_found = []
+        
+        # Check for type mismatches
+        if table_cols:
+            for col_name, sql_type, max_len in table_cols:
+                if col_name in df.columns:
+                    # Check for string length issues
+                    if max_len and 'char' in sql_type.lower():
+                        long_values = df[df[col_name].astype(str).str.len() > max_len]
+                        if not long_values.empty:
+                            issues_found.append(f"Column '{col_name}' has {len(long_values)} values exceeding max length {max_len}")
+                    
+                    # Check for NULL in NOT NULL columns (if we had that info)
+                    null_count = df[col_name].isna().sum()
+                    if null_count > 0:
+                        issues_found.append(f"Column '{col_name}' has {null_count} NULL/empty values")
+        
+        if issues_found:
+            for issue in issues_found:
+                print(f"  ⚠ {issue}")
+        else:
+            print("  (Run with more verbose logging to see detailed type information)")
+        
+        print(f"\n{'='*80}\n")
         raise
 
 
