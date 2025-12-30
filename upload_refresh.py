@@ -263,6 +263,12 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
                 if match:
                     col_max_lengths[col_name] = int(match.group(1))
     
+    # Build a map of column data types for proper conversion
+    col_data_types = {}
+    if table_cols:
+        for col_name, sql_type, _ in table_cols:
+            col_data_types[col_name] = sql_type.lower()
+    
     # Convert DataFrame to list of tuples, converting pandas NA/NaN to None for SQL Server
     data = []
     for _, row in df.iterrows():
@@ -273,13 +279,23 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
             if pd.isna(val):
                 row_data.append(None)
             else:
-                # Truncate string values if they exceed column max length
-                if isinstance(val, str) and col_name in col_max_lengths:
-                    max_len = col_max_lengths[col_name]
-                    if len(val) > max_len:
-                        val = val[:max_len]
-                        print(f"Warning: Truncated '{col_name}' value (length {len(val)} > {max_len})")
-                row_data.append(val)
+                # Special handling for BIT columns - ensure proper boolean conversion
+                if col_name in col_data_types and 'bit' in col_data_types[col_name]:
+                    # Convert to Python bool (True/False) or None for SQL Server BIT
+                    if isinstance(val, bool):
+                        row_data.append(val)
+                    else:
+                        # Shouldn't happen if prepare_dataframe_for_table worked correctly,
+                        # but handle edge cases
+                        row_data.append(None)
+                else:
+                    # Truncate string values if they exceed column max length
+                    if isinstance(val, str) and col_name in col_max_lengths:
+                        max_len = col_max_lengths[col_name]
+                        if len(val) > max_len:
+                            val = val[:max_len]
+                            print(f"Warning: Truncated '{col_name}' value (length {len(val)} > {max_len})")
+                    row_data.append(val)
         data.append(tuple(row_data))
     
     cursor.fast_executemany = True
@@ -524,7 +540,34 @@ def prepare_dataframe_for_table(df: 'pd.DataFrame', table_cols, filename=None):
         elif coercion == 'float':
             prepared[col_name] = pd.to_numeric(prepared[col_name], errors='coerce').astype('float64')
         elif coercion == 'bool':
-            prepared[col_name] = prepared[col_name].map(lambda v: True if v in (1, '1', 'True', 'true', True) else (False if v in (0, '0', 'False', 'false', False) else pd.NA)).astype('boolean')
+            # Handle BIT columns: convert various formats to boolean, empty/blank to NULL
+            def convert_to_bit(v):
+                # Handle None, NaN, empty strings, whitespace - convert to NULL
+                if pd.isna(v):
+                    return pd.NA
+                if isinstance(v, str) and v.strip() == '':
+                    return pd.NA
+                # Handle boolean values directly
+                if isinstance(v, bool):
+                    return v
+                # Handle numeric: 1 = True, 0 = False, anything else = NULL
+                if isinstance(v, (int, float)):
+                    if v == 1:
+                        return True
+                    elif v == 0:
+                        return False
+                    else:
+                        return pd.NA
+                # Handle string representations
+                v_str = str(v).strip().lower()
+                if v_str in ('1', 'true', 'yes', 'y', 't'):
+                    return True
+                elif v_str in ('0', 'false', 'no', 'n', 'f'):
+                    return False
+                # Default to NULL for unrecognized values (empty strings already handled above)
+                return pd.NA
+            
+            prepared[col_name] = prepared[col_name].apply(convert_to_bit).astype('boolean')
         elif coercion == 'datetime':
             prepared[col_name] = pd.to_datetime(prepared[col_name], errors='coerce')
         else:
