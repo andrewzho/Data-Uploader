@@ -215,6 +215,127 @@ def split_sql_batches(sql_text: str):
     return [b.strip() for b in batches if b.strip()]
 
 
+def upload_excel_in_chunks(file_path, conn, table, table_cols, upload_mode='append', chunk_size=50000, log_callback=None):
+    """
+    Read and upload Excel file in chunks to avoid loading entire file into memory.
+    This is much more memory-efficient for large files.
+    
+    Args:
+        file_path: Path to Excel file
+        conn: Database connection
+        table: Target table name
+        table_cols: Table column metadata
+        upload_mode: 'append' or 'delete'
+        chunk_size: Number of rows to process at a time
+        log_callback: Optional function to call with log messages
+    
+    Returns:
+        Total number of rows uploaded
+    """
+    def log(msg):
+        if log_callback:
+            log_callback(msg)
+        else:
+            print(msg, flush=True)
+    
+    import time
+    from openpyxl import load_workbook
+    
+    # First, get total row count and column names using read_only mode (fast, memory-efficient)
+    log(f"  Analyzing file structure...")
+    wb = load_workbook(filename=file_path, read_only=True, data_only=True)
+    ws = wb.active
+    
+    # Get column headers from first row
+    headers = []
+    for cell in ws[1]:
+        headers.append(cell.value if cell.value is not None else f"Column{len(headers)+1}")
+    
+    total_rows = ws.max_row - 1  # Subtract header row
+    wb.close()  # Close read-only workbook
+    
+    log(f"  File has {total_rows:,} rows, {len(headers)} columns")
+    
+    # Handle upload mode
+    cursor = conn.cursor()
+    if upload_mode == 'delete':
+        try:
+            cursor.execute(f"DELETE FROM {table}")
+            log(f"  Cleared existing data from table")
+        except Exception as e:
+            log(f"  Warning: Could not delete table data: {e}")
+    
+    # Read and process in chunks
+    total_uploaded = 0
+    chunk_num = 0
+    start_row = 2  # Start at row 2 (skip header row 1)
+    
+    log(f"  Starting chunked processing (reading {chunk_size:,} rows at a time)...")
+    
+    while start_row <= total_rows + 1:  # +1 because max_row includes header
+        chunk_num += 1
+        try:
+            # Calculate how many rows to read in this chunk
+            rows_to_read = min(chunk_size, total_rows + 2 - start_row)
+            
+            if rows_to_read <= 0:
+                break  # No more data
+            
+            # Read chunk using skiprows and nrows
+            chunk_start = time.time()
+            log(f"  Reading chunk {chunk_num} (rows {start_row}-{start_row + rows_to_read - 1})...")
+            
+            # Read chunk: skiprows is a list of row indices to skip (0-indexed, excluding header)
+            # We need to skip: header (row 0) and all rows before start_row
+            # start_row is 1-indexed (row 2 = first data row), so we skip rows 0 through start_row-2
+            skip_list = list(range(0, start_row - 1))  # Skip header (0) and rows before start_row
+            
+            df_chunk = pd.read_excel(
+                file_path, 
+                engine='openpyxl',
+                skiprows=skip_list,  # List of row indices to skip (0-indexed)
+                nrows=rows_to_read
+            )
+            
+            if df_chunk.empty:
+                break  # No more data
+            
+            # Set column names from headers we extracted
+            if len(df_chunk.columns) == len(headers):
+                df_chunk.columns = headers
+            elif len(df_chunk.columns) > 0:
+                # If column count doesn't match, use what we have
+                log(f"  Warning: Column count mismatch (expected {len(headers)}, got {len(df_chunk.columns)})")
+            
+            # Prepare this chunk
+            from upload_refresh import prepare_dataframe_for_table
+            df_prepared = prepare_dataframe_for_table(df_chunk, table_cols, filename=Path(file_path).name)
+            
+            # Upload this chunk (always append since we handle delete mode above)
+            upload_df_to_table(conn, df_prepared, table, upload_mode='append', table_cols=table_cols)
+            
+            total_uploaded += len(df_prepared)
+            chunk_time = time.time() - chunk_start
+            progress_pct = (total_uploaded / total_rows) * 100 if total_rows > 0 else 0
+            
+            log(f"  ✓ Chunk {chunk_num}: {len(df_prepared):,} rows uploaded ({total_uploaded:,}/{total_rows:,}, {progress_pct:.1f}%) in {chunk_time:.1f}s")
+            
+            # Move to next chunk
+            start_row += rows_to_read
+            
+            # Free memory explicitly
+            del df_chunk
+            del df_prepared
+            
+        except Exception as e:
+            log(f"  ✗ Error processing chunk {chunk_num}: {e}")
+            raise
+    
+    conn.commit()
+    log(f"  ✓ Chunked processing complete: {total_uploaded:,} total rows uploaded")
+    return total_uploaded
+
+
 def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
     """
     Upload DataFrame to SQL Server table.

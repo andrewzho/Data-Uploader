@@ -663,41 +663,70 @@ class DataUploaderGUI:
                         self.log_message(f"Processing {file_name} ({file_size_mb:.1f} MB)...")
                         self.root.update_idletasks()  # Update GUI to show message
                         
-                        # Read Excel file with progress feedback
-                        # For large files, use engine='openpyxl' with read-only mode for better performance
-                        self.log_message(f"  Reading Excel file...")
-                        self.root.update_idletasks()
-                        try:
-                            # Try to use openpyxl engine with read_only mode for large files
-                            # This is more memory efficient for large Excel files
-                            if file_size_mb > 50:  # For files larger than 50 MB
-                                self.log_message(f"  (Using optimized reading mode for large file...)")
-                                self.root.update_idletasks()
-                            df = pd.read_excel(file_path, engine='openpyxl')
-                        except Exception as e:
-                            # Fallback to default engine if openpyxl fails
-                            self.log_message(f"  (Falling back to default reader...)")
+                        # For large files, use chunked processing to avoid loading everything into memory
+                        import time
+                        start_time = time.time()
+                        chunk_size = 50000  # Process 50,000 rows at a time
+                        
+                        if file_size_mb > 50:
+                            # Use chunked processing for large files - MUCH more memory efficient
+                            self.log_message(f"  Using CHUNKED PROCESSING for large file ({file_size_mb:.1f} MB)...")
+                            self.log_message(f"  This reads and uploads in chunks of {chunk_size:,} rows")
+                            self.log_message(f"  This avoids loading the entire file into memory at once")
                             self.root.update_idletasks()
-                            df = pd.read_excel(file_path)
-                        self.log_message(f"  ✓ Loaded {len(df):,} rows, {len(df.columns)} columns")
-                        self.root.update_idletasks()
-                        
-                        # Prepare DataFrame (align columns, coerce types)
-                        self.log_message(f"  Preparing data (type conversion, column alignment)...")
-                        self.root.update_idletasks()
-                        from upload_refresh import prepare_dataframe_for_table
-                        df_prepared = prepare_dataframe_for_table(df, table_cols, filename=file_name)
-                        self.log_message(f"  ✓ Data preparation complete")
-                        self.root.update_idletasks()
-                        
-                        # Upload to table
-                        self.log_message(f"  Starting upload to {self.current_upload_table}...")
-                        self.root.update_idletasks()
-                        from upload_refresh import upload_df_to_table
-                        upload_df_to_table(conn, df_prepared, self.current_upload_table, 
-                                         upload_mode=upload_mode, table_cols=table_cols)
-                        
-                        self.log_message(f"  ✓ Uploaded {len(df_prepared):,} rows from {file_name}")
+                            
+                            from upload_refresh import upload_excel_in_chunks
+                            total_rows = upload_excel_in_chunks(
+                                file_path, 
+                                conn, 
+                                self.current_upload_table, 
+                                table_cols, 
+                                upload_mode=upload_mode,
+                                chunk_size=chunk_size,
+                                log_callback=lambda msg: (self.log_message(msg), self.root.update_idletasks())
+                            )
+                            
+                            elapsed = time.time() - start_time
+                            minutes = int(elapsed // 60)
+                            seconds = int(elapsed % 60)
+                            if minutes > 0:
+                                self.log_message(f"  ✓ Uploaded {total_rows:,} rows in {minutes}m {seconds}s (chunked processing)")
+                            else:
+                                self.log_message(f"  ✓ Uploaded {total_rows:,} rows in {seconds}s (chunked processing)")
+                            self.root.update_idletasks()
+                            
+                        else:
+                            # Small files - read all at once (faster for small files)
+                            self.log_message(f"  Reading Excel file...")
+                            self.root.update_idletasks()
+                            
+                            try:
+                                df = pd.read_excel(file_path, engine='openpyxl')
+                            except Exception as e:
+                                self.log_message(f"  (Falling back to default reader...)")
+                                self.root.update_idletasks()
+                                df = pd.read_excel(file_path)
+                            
+                            elapsed = time.time() - start_time
+                            self.log_message(f"  ✓ Loaded {len(df):,} rows, {len(df.columns)} columns")
+                            self.root.update_idletasks()
+                            
+                            # Prepare DataFrame (align columns, coerce types)
+                            self.log_message(f"  Preparing data (type conversion, column alignment)...")
+                            self.root.update_idletasks()
+                            from upload_refresh import prepare_dataframe_for_table
+                            df_prepared = prepare_dataframe_for_table(df, table_cols, filename=file_name)
+                            self.log_message(f"  ✓ Data preparation complete")
+                            self.root.update_idletasks()
+                            
+                            # Upload to table
+                            self.log_message(f"  Starting upload to {self.current_upload_table}...")
+                            self.root.update_idletasks()
+                            from upload_refresh import upload_df_to_table
+                            upload_df_to_table(conn, df_prepared, self.current_upload_table, 
+                                             upload_mode=upload_mode, table_cols=table_cols)
+                            
+                            self.log_message(f"  ✓ Uploaded {len(df_prepared):,} rows from {file_name}")
                         self.progress_var.set((idx + 1) * 100 / len(self.current_upload_files))
                         self.root.update_idletasks()
                     
