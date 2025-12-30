@@ -8,7 +8,11 @@ Total rows attempted: 177210
 --- Error Information ---
 
 Error Message:
+  (Error message could not be extracted)
 
+--- Full Exception Details (for debugging) ---
+  Exception Type: MemoryError
+  Exception String:
 
 --- Table Schema ---
   [ICD 10] nvarchar (max: 255)
