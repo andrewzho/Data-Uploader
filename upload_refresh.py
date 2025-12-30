@@ -299,9 +299,30 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
         data.append(tuple(row_data))
     
     cursor.fast_executemany = True
+    
+    # Process in batches to avoid memory errors with large datasets
+    # Default batch size: 10,000 rows (adjustable based on available memory)
+    batch_size = 10000
+    total_rows = len(data)
+    
     try:
-        cursor.executemany(sql, data)
-        conn.commit()
+        if total_rows > batch_size:
+            print(f"Large dataset detected ({total_rows:,} rows). Processing in batches of {batch_size:,}...")
+            rows_uploaded = 0
+            for i in range(0, total_rows, batch_size):
+                batch = data[i:i + batch_size]
+                batch_num = (i // batch_size) + 1
+                total_batches = (total_rows + batch_size - 1) // batch_size
+                print(f"  Uploading batch {batch_num}/{total_batches} ({len(batch):,} rows)...", end=' ', flush=True)
+                cursor.executemany(sql, batch)
+                rows_uploaded += len(batch)
+                print(f"✓ ({rows_uploaded:,}/{total_rows:,} rows)")
+            conn.commit()
+            print(f"✓ All {total_rows:,} rows uploaded successfully!")
+        else:
+            # Small dataset - upload all at once
+            cursor.executemany(sql, data)
+            conn.commit()
     except Exception as e:
         # Extract detailed error information from pyodbc errors
         error_details = {}
