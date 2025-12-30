@@ -1,126 +1,68 @@
-================================================================================
-UPLOAD ERROR - Detailed Information
-================================================================================
+SELECT TOP (1000) [PaymentDateUpdated]
+      ,[PaymentDateVoided]
+      ,[VoucherDateUpdated]
+      ,[VoucherDateVoided]
+      ,[PracticeCompanyNumber]
+      ,[PracticeName]
+      ,[DepartmentAbv]
+      ,[DepartmentDescription]
+      ,[AccountType]
+      ,[InsuranceAbv]
+      ,[InsuranceName]
+      ,[PatientNumber]
+      ,[PatientFullName]
+      ,[FromDOS]
+      ,[Voucher]
+      ,[BillDate]
+      ,[ReBillDate]
+      ,[BillingProvider]
+      ,[NPI]
+      ,[PatientSubscriberID]
+      ,[ProcedureCode]
+      ,[ProcedureDescription]
+      ,[Modifier]
+      ,[DiagnosisCode]
+      ,[WorkRVU]
+      ,[PERVU]
+      ,[MPRVU]
+      ,[Units]
+      ,[Charges]
+      ,[PersonalPayments]
+      ,[InsurancePayments]
+      ,[IntlPayments]
+      ,[ContractualAdjustment]
+      ,[Charity]
+      ,[Refunds]
+      ,[BalTransFromTiger]
+      ,[IntlAdjustment]
+      ,[Bankruptcy]
+      ,[PatientBalanceDeemedUncollectible]
+      ,[CharityWriteOff]
+      ,[IndigentCharity]
+      ,[BundledNCCIEdit]
+      ,[ChargeError]
+      ,[GlobalPeriodNotBillable]
+      ,[AppealsExhaustedNotMedNecessary]
+      ,[ChargesNotReceivedfromSiteTimely]
+      ,[DeceasedPatient]
+      ,[FinancialHardship]
+      ,[G6017NotCovered]
+      ,[MUEMaxUnitsExceeded]
+      ,[NoAuthorizationObtained]
+      ,[NoncoveredService]
+      ,[NoTransferAgreementInpat]
+      ,[OutofNetwork]
+      ,[PromptPayAdjustment]
+      ,[SmallBalanceAdjustment]
+      ,[RefundExceedsRecoupPeriod]
+      ,[CollectionAgencyPayments]
+      ,[CollectionAgencyRefunds]
+      ,[CollectionAgencyTransfers]
+      ,[CollectionAgencyAdjustment]
+      ,[CollectionAgencyFeeAdjustment]
+      ,[DateRan]
+  FROM [DataCleanup].[dbo].[TransactionsRaw]
 
-Table: [DataCleanup].[dbo].[Fractions]
-Total rows attempted: 177210
 
---- Error Information ---
 
-Error Message:
-  (Error message could not be extracted)
-
---- Full Exception Details (for debugging) ---
-  Exception Type: MemoryError
-  Exception String:
-
---- Table Schema ---
-  [ICD 10] nvarchar (max: 255)
-  [Activity Name] nvarchar (max: 255)
-  [Due Date] nvarchar (max: 255)
-  [Start Date] datetime (max: 8)
-  [Duration] nvarchar (max: 255)
-  [Note] nvarchar
-  [Status] nvarchar (max: 255)
-  [Prim# Oncologist] nvarchar (max: 255)
-  [Diagnosis] nvarchar
-  [Staff/Resource(s)] nvarchar (max: 255)
-  [Patient Name] nvarchar (max: 255)
-  [Patient ID1] nvarchar (max: 255)
-  [Created By] nvarchar (max: 255)
-  [Check-In] bit (max: 1)
-  [Questionnaire] nvarchar (max: 255)
-  [Priority] nvarchar (max: 255)
-  [Checklist] nvarchar (max: 255)
-
---- DataFrame Information ---
-Columns in DataFrame (17):
-  1. ICD 10 (sample type: str)
-  2. Activity Name (sample type: str)
-  3. Due Date
-  4. Start Date (sample type: Timestamp)
-  5. Duration (sample type: str)
-  6. Note (sample type: str)
-  7. Status (sample type: str)
-  8. Prim# Oncologist (sample type: str)
-  9. Diagnosis (sample type: str)
-  10. Staff/Resource(s) (sample type: str)
-  11. Patient Name (sample type: str)
-  12. Patient ID1 (sample type: str)
-  13. Created By (sample type: str)
-  14. Check-In (sample type: bool_)
-  15. Questionnaire
-  16. Priority (sample type: str)
-  17. Checklist
-
---- Sample Data (First 3 Rows) ---
-
-  Row 1:
-    [ICD 10]: D05.91 (str)
-    [Activity Name]: New Start Daily Treatment (str)
-    [Due Date]: None (NoneType)
-    [Start Date]: 2019-08-01 07:30:00 (Timestamp)
-    [Duration]: 30 (str)
-    [Note]: None (NoneType)
-    [Status]: Open (str)
-    [Prim# Oncologist]: Brian Yeh, MD (str)
-    [Diagnosis]: 6/24/2019, D05.91, Unspecified type of carcinoma in situ of right breast (str)
-    [Staff/Resource(s)]: GTR3 (str)
-    [Patient Name]: zz_Breast, zz_Test plan9 (zz45785612) (str)
-    [Patient ID1]: zz45785612 (str)
-    [Created By]: Christopher Ackerman (str)
-    [Check-In]: True (bool)
-    [Questionnaire]: None (NoneType)
-    [Priority]: Medium (str)
-    [Checklist]: None (NoneType)
-
-  Row 2:
-    [ICD 10]: C34.12 (str)
-    [Activity Name]: New Start Daily Treatment (str)
-    [Due Date]: None (NoneType)
-    [Start Date]: 2019-08-01 08:00:00 (Timestamp)
-    [Duration]: 30 (str)
-    [Note]: None (NoneType)
-    [Status]: Open (str)
-    [Prim# Oncologist]: Nancy Lee, MD (str)
-    [Diagnosis]: 6/9/2019, C34.12, Malignant neoplasm of upper lobe, left bronchus or lung (str)
-    [Staff/Resource(s)]: GTR3 (str)
-    [Patient Name]: zz_Lung, zz_Test plan2 (zz98763617) (str)
-    [Patient ID1]: zz98763617 (str)
-    [Created By]: Christopher Ackerman (str)
-    [Check-In]: False (bool)
-    [Questionnaire]: None (NoneType)
-    [Priority]: Medium (str)
-    [Checklist]: None (NoneType)
-
-  Row 3:
-    [ICD 10]: C61 (str)
-    [Activity Name]: New Start Daily Treatment (str)
-    [Due Date]: None (NoneType)
-    [Start Date]: 2019-08-01 08:30:00 (Timestamp)
-    [Duration]: 30 (str)
-    [Note]: None (NoneType)
-    [Status]: Completed (str)
-    [Prim# Oncologist]: Madhur Garg, MD (str)
-    [Diagnosis]: 6/9/2019, C61, Malignant neoplasm of prostate (str)
-    [Staff/Resource(s)]: GTR3 (str)
-    [Patient Name]: zz_Prostate, zz_Test plan7 (zz63409256) (str)
-    [Patient ID1]: zz63409256 (str)
-    [Created By]: Christopher Ackerman (str)
-    [Check-In]: True (bool)
-    [Questionnaire]: None (NoneType)
-    [Priority]: Medium (str)
-    [Checklist]: None (NoneType)
-
---- Potential Issues ---
-  ⚠ Column 'ICD 10' has 20487 NULL/empty values
-  ⚠ Column 'Due Date' has 177210 NULL/empty values
-  ⚠ Column 'Note' has 11272 NULL/empty values
-  ⚠ Column 'Prim# Oncologist' has 17012 NULL/empty values
-  ⚠ Column 'Diagnosis' has 20487 NULL/empty values
-  ⚠ Column 'Patient Name' has 10991 NULL/empty values
-  ⚠ Column 'Patient ID1' has 10991 NULL/empty values
-  ⚠ Column 'Questionnaire' has 177210 NULL/empty values
-  ⚠ Column 'Checklist' has 177210 NULL/empty values
-
-================================================================================
+PaymentDateUpdated	PaymentDateVoided	VoucherDateUpdated	VoucherDateVoided	PracticeCompanyNumber	DepartmentAbv	AccountType	InsuranceAbv	InsuranceName	PatientNumber	PatientFullName	FromDOS	Voucher	BillDate	ReBillDate	BillingProvider	NPI	PatientSubscriberID	ProcedureCode	ProcedureDescription	Modifier	DiagnosisCode	WorkRVU	PERVU	MPRVU	Units	Charges	Payments	Adjustments	Refunds	PersonalPayments	InsurancePayments	IntlPayments	AppealsExhaustedNotMedNecessary	Charity	CharityWriteOff	ContractualAdjustment	DeceasedPatient	FinancialHardship	IntlAdjustment	NoAuthorizationObtained	NoncoveredService	NoTransferAgreementInpat	OtherAdjustments	OutofNetwork	PatientBalanceDeemedUncollectible	PromptPayAdjustment	RefundExceedsRecoupPeriod	DateRan
