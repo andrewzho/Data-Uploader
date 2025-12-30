@@ -213,7 +213,7 @@ SELECT
     VoucherDateVoided,
     DateRan,
     PracticeCompanyNumber,
-    PracticeName,
+    NULL AS PracticeName,  -- Not in new file structure
     DepartmentAbv,
     AccountType,
     InsuranceAbv,
@@ -246,105 +246,82 @@ SELECT
     COALESCE(Refunds,0)               AS Refunds,
     COALESCE(Charges,0)
   - COALESCE(ContractualAdjustment,0) AS Allowed,
-    COALESCE(PersonalPayments,0)
-  + COALESCE(InsurancePayments,0)
-  + COALESCE(IntlPayments,0)          AS TotalPayments,
-    COALESCE(Charity,0)
-  + COALESCE(BalTransFromTiger,0)
-  + COALESCE(IntlAdjustment,0)
-  + COALESCE(Bankruptcy,0)
-  + COALESCE(PatientBalanceDeemedUncollectible,0)
-  + COALESCE(CharityWriteOff,0)
-  + COALESCE(IndigentCharity,0)
-  + COALESCE(BundledNCCIEdit,0)
-  + COALESCE(ChargeError,0)
-  + COALESCE(GlobalPeriodNotBillable,0)
-  + COALESCE(AppealsExhaustedNotMedNecessary,0)
-  + COALESCE(ChargesNotReceivedfromSiteTimely,0)
-  + COALESCE(DeceasedPatient,0)
-  + COALESCE(FinancialHardship,0)
-  + COALESCE(G6017NotCovered,0)
-  + COALESCE(MUEMaxUnitsExceeded,0)
-  + COALESCE(NoAuthorizationObtained,0)
-  + COALESCE(NoncoveredService,0)
-  + COALESCE(NoTransferAgreementInpat,0)
-  + COALESCE(OutofNetwork,0)
-  + COALESCE(PromptPayAdjustment,0)
-  + COALESCE(SmallBalanceAdjustment,0)
-  + COALESCE(CollectionAgencyPayments,0)
-  + COALESCE(CollectionAgencyRefunds,0)
-  + COALESCE(CollectionAgencyTransfers,0)
-  + COALESCE(CollectionAgencyAdjustment,0)
-  + COALESCE(CollectionAgencyFeeAdjustment,0) AS TotalAdjustments,
+    -- Use Payments column if available, otherwise sum individual payments
+    COALESCE(Payments, 
+             COALESCE(PersonalPayments,0) + COALESCE(InsurancePayments,0) + COALESCE(IntlPayments,0)
+    ) AS TotalPayments,
+    -- Use Adjustments column if available, otherwise sum individual adjustments
+    COALESCE(Adjustments,
+             COALESCE(Charity,0)
+           + COALESCE(IntlAdjustment,0)
+           + COALESCE(PatientBalanceDeemedUncollectible,0)
+           + COALESCE(CharityWriteOff,0)
+           + COALESCE(FinancialHardship,0)
+           + COALESCE(AppealsExhaustedNotMedNecessary,0)
+           + COALESCE(DeceasedPatient,0)
+           + COALESCE(NoAuthorizationObtained,0)
+           + COALESCE(NoncoveredService,0)
+           + COALESCE(NoTransferAgreementInpat,0)
+           + COALESCE(OutofNetwork,0)
+           + COALESCE(PromptPayAdjustment,0)
+           + COALESCE(OtherAdjustments,0)
+    ) AS TotalAdjustments,
     (COALESCE(Charges,0) - COALESCE(ContractualAdjustment,0))
-  - (COALESCE(PersonalPayments,0)
-     + COALESCE(InsurancePayments,0)
-     + COALESCE(IntlPayments,0))
-  - (COALESCE(Charity,0)
-    + COALESCE(BalTransFromTiger,0)
-    + COALESCE(IntlAdjustment,0)
-    + COALESCE(Bankruptcy,0)
-    + COALESCE(PatientBalanceDeemedUncollectible,0)
-    + COALESCE(CharityWriteOff,0)
-    + COALESCE(IndigentCharity,0)
-    + COALESCE(BundledNCCIEdit,0)
-    + COALESCE(ChargeError,0)
-    + COALESCE(GlobalPeriodNotBillable,0)
-    + COALESCE(AppealsExhaustedNotMedNecessary,0)
-    + COALESCE(ChargesNotReceivedfromSiteTimely,0)
-    + COALESCE(DeceasedPatient,0)
-    + COALESCE(FinancialHardship,0)
-    + COALESCE(G6017NotCovered,0)
-    + COALESCE(MUEMaxUnitsExceeded,0)
-    + COALESCE(NoAuthorizationObtained,0)
-    + COALESCE(NoncoveredService,0)
-    + COALESCE(NoTransferAgreementInpat,0)
-    + COALESCE(OutofNetwork,0)
-    + COALESCE(PromptPayAdjustment,0)
-    + COALESCE(SmallBalanceAdjustment,0)
-    + COALESCE(CollectionAgencyPayments,0)
-    + COALESCE(CollectionAgencyRefunds,0)
-    + COALESCE(CollectionAgencyTransfers,0)
-    + COALESCE(CollectionAgencyAdjustment,0)
-    + COALESCE(CollectionAgencyFeeAdjustment,0)
-    ) 
+  - COALESCE(Payments, 
+             COALESCE(PersonalPayments,0) + COALESCE(InsurancePayments,0) + COALESCE(IntlPayments,0)
+    )
+  - COALESCE(Adjustments,
+             COALESCE(Charity,0)
+           + COALESCE(IntlAdjustment,0)
+           + COALESCE(PatientBalanceDeemedUncollectible,0)
+           + COALESCE(CharityWriteOff,0)
+           + COALESCE(FinancialHardship,0)
+           + COALESCE(AppealsExhaustedNotMedNecessary,0)
+           + COALESCE(DeceasedPatient,0)
+           + COALESCE(NoAuthorizationObtained,0)
+           + COALESCE(NoncoveredService,0)
+           + COALESCE(NoTransferAgreementInpat,0)
+           + COALESCE(OutofNetwork,0)
+           + COALESCE(PromptPayAdjustment,0)
+           + COALESCE(OtherAdjustments,0)
+    )
 	- COALESCE(Refunds,0) AS RemainingBalance,
     Charity,
-    BalTransFromTiger,
+    0 AS BalTransFromTiger,  -- Not in new file structure
     IntlAdjustment,
-    Bankruptcy,
+    0 AS Bankruptcy,  -- Not in new file structure
     PatientBalanceDeemedUncollectible,
     CharityWriteOff,
-    IndigentCharity,
-    BundledNCCIEdit,
-    ChargeError,
-    GlobalPeriodNotBillable,
+    0 AS IndigentCharity,  -- Not in new file structure (may be in Charity or OtherAdjustments)
+    0 AS BundledNCCIEdit,  -- Not in new file structure
+    0 AS ChargeError,  -- Not in new file structure
+    0 AS GlobalPeriodNotBillable,  -- Not in new file structure
     AppealsExhaustedNotMedNecessary,
-    ChargesNotReceivedfromSiteTimely,
+    0 AS ChargesNotReceivedfromSiteTimely,  -- Not in new file structure
     DeceasedPatient,
     FinancialHardship,
-    G6017NotCovered,
-    MUEMaxUnitsExceeded,
+    0 AS G6017NotCovered,  -- Not in new file structure
+    0 AS MUEMaxUnitsExceeded,  -- Not in new file structure
     NoAuthorizationObtained,
     NoncoveredService,
     NoTransferAgreementInpat,
     OutofNetwork,
     PromptPayAdjustment,
-    SmallBalanceAdjustment,
-    CollectionAgencyPayments,
-    CollectionAgencyRefunds,
-    CollectionAgencyTransfers,
-    CollectionAgencyAdjustment,
-    CollectionAgencyFeeAdjustment,
-    (Charity + CharityWriteOff + IndigentCharity + FinancialHardship) AS CharityAdjs,
-    (BalTransFromTiger + Bankruptcy + BundledNCCIEdit + ChargeError +
-     GlobalPeriodNotBillable + ChargesNotReceivedfromSiteTimely + G6017NotCovered +
-     CollectionAgencyAdjustment + CollectionAgencyFeeAdjustment +
-     CollectionAgencyPayments + CollectionAgencyRefunds + CollectionAgencyTransfers) AS OtherAdjs,
+    0 AS SmallBalanceAdjustment,  -- Not in new file structure
+    0 AS CollectionAgencyPayments,  -- Not in new file structure
+    0 AS CollectionAgencyRefunds,  -- Not in new file structure
+    0 AS CollectionAgencyTransfers,  -- Not in new file structure
+    0 AS CollectionAgencyAdjustment,  -- Not in new file structure
+    0 AS CollectionAgencyFeeAdjustment,  -- Not in new file structure
+    -- CharityAdjs: Use available columns or estimate from consolidated data
+    COALESCE(Charity,0) + COALESCE(CharityWriteOff,0) + COALESCE(FinancialHardship,0) AS CharityAdjs,
+    -- OtherAdjs: Use OtherAdjustments if available, otherwise 0 (many columns missing)
+    COALESCE(OtherAdjustments,0) AS OtherAdjs,
     IntlAdjustment AS InternationalAdjs,
-    (PatientBalanceDeemedUncollectible + DeceasedPatient) AS PatientDirective,
-    (AppealsExhaustedNotMedNecessary + MUEMaxUnitsExceeded + NoAuthorizationObtained +
-     NoncoveredService + NoTransferAgreementInpat + OutofNetwork + SmallBalanceAdjustment) AS PayerDirective,
+    (COALESCE(PatientBalanceDeemedUncollectible,0) + COALESCE(DeceasedPatient,0)) AS PatientDirective,
+    (COALESCE(AppealsExhaustedNotMedNecessary,0) + COALESCE(NoAuthorizationObtained,0) +
+     COALESCE(NoncoveredService,0) + COALESCE(NoTransferAgreementInpat,0) + 
+     COALESCE(OutofNetwork,0)) AS PayerDirective,
     PatientSubscriberID,
     GETDATE() AS [Date Uploaded]
 FROM [DataCleanup].[dbo].[TransactionsRaw]

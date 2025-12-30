@@ -86,25 +86,17 @@ TABLE_SCHEMAS = {
     ],
     'TransactionsRaw': [
         'PaymentDateUpdated', 'PaymentDateVoided', 'VoucherDateUpdated', 'VoucherDateVoided',
-        'DateRan', 'PracticeCompanyNumber', 'PracticeName', 'DepartmentAbv', 'AccountType',
-        'InsuranceAbv', 'InsuranceName', 'PatientNumber', 'PatientNumberUpdated',
-        'PatientFullName', 'LastName', 'FirstName', 'MiddleName', 'FromDOS', 'Voucher',
-        'BillDate', 'ReBillDate', 'BillingProvider', 'NPI', 'ProcedureCode',
-        'ProcedureDescription', 'Modifier', 'DiagnosisCode', 'WorkRVU', 'PERVU', 'MPRVU',
-        'Units', 'Charges', 'PersonalPayments', 'InsurancePayments', 'IntlPayments',
-        'ContractualAdjustment', 'Refunds', 'Allowed', 'TotalPayments', 'TotalAdjustments',
-        'RemainingBalance', 'Charity', 'BalTransFromTiger', 'IntlAdjustment', 'Bankruptcy',
-        'PatientBalanceDeemedUncollectible', 'CharityWriteOff', 'IndigentCharity',
-        'BundledNCCIEdit', 'ChargeError', 'GlobalPeriodNotBillable',
-        'AppealsExhaustedNotMedNecessary', 'ChargesNotReceivedfromSiteTimely',
-        'DeceasedPatient', 'FinancialHardship', 'G6017NotCovered', 'MUEMaxUnitsExceeded',
+        'PracticeCompanyNumber', 'DepartmentAbv', 'AccountType',
+        'InsuranceAbv', 'InsuranceName', 'PatientNumber', 'PatientFullName',
+        'FromDOS', 'Voucher', 'BillDate', 'ReBillDate', 'BillingProvider', 'NPI',
+        'PatientSubscriberID', 'ProcedureCode', 'ProcedureDescription', 'Modifier',
+        'DiagnosisCode', 'WorkRVU', 'PERVU', 'MPRVU', 'Units', 'Charges',
+        'Payments', 'Adjustments', 'Refunds', 'PersonalPayments', 'InsurancePayments',
+        'IntlPayments', 'AppealsExhaustedNotMedNecessary', 'Charity', 'CharityWriteOff',
+        'ContractualAdjustment', 'DeceasedPatient', 'FinancialHardship', 'IntlAdjustment',
         'NoAuthorizationObtained', 'NoncoveredService', 'NoTransferAgreementInpat',
-        'OutofNetwork', 'PromptPayAdjustment', 'SmallBalanceAdjustment',
-        'CollectionAgencyPayments', 'CollectionAgencyRefunds', 'CollectionAgencyTransfers',
-        'CollectionAgencyAdjustment', 'CollectionAgencyFeeAdjustment', 'CharityAdjs',
-        'OtherAdjs', 'InternationalAdjs', 'PatientDirective', 'PayerDirective',
-        'PrimaryInsurance', 'SecondaryInsurance', 'VisitNumber', 'TransMRN',
-        'PayerRollUp', 'InsuranceCat', 'PatientSubscriberID', 'Date Uploaded'
+        'OtherAdjustments', 'OutofNetwork', 'PatientBalanceDeemedUncollectible',
+        'PromptPayAdjustment', 'RefundExceedsRecoupPeriod', 'DateRan'
     ]
 }
 
