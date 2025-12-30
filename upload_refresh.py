@@ -40,6 +40,40 @@ try:
 except Exception:
     SequenceMatcher = None
 
+try:
+    import numpy as np
+except Exception:
+    np = None
+
+
+def convert_numpy_to_python(val):
+    """
+    Convert numpy types to Python native types for pyodbc compatibility.
+    pyodbc doesn't handle numpy.int64, numpy.float64, etc. directly.
+    """
+    if np is not None:
+        # Check if it's a numpy scalar type
+        if isinstance(val, (np.integer, np.floating)):
+            # Convert numpy integer/float to Python native type
+            if isinstance(val, np.integer):
+                return int(val)
+            elif isinstance(val, np.floating):
+                return float(val)
+        # Check for numpy datetime64
+        elif isinstance(val, np.datetime64):
+            # Convert to pandas Timestamp (which pyodbc can handle) or Python datetime
+            return pd.Timestamp(val)
+    # Check by type name as fallback (in case numpy isn't imported but types are still numpy)
+    type_name = type(val).__name__
+    if type_name.startswith('int') and hasattr(val, 'item'):
+        # numpy integer type
+        return int(val.item())
+    elif type_name.startswith('float') and hasattr(val, 'item'):
+        # numpy float type
+        return float(val.item())
+    # Return as-is if not a numpy type
+    return val
+
 
 def list_sql_files(base: Path):
     return sorted([p.name for p in base.glob('*.sql')])
@@ -408,6 +442,9 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
                 if pd.isna(val):
                     row_data.append(None)
                 else:
+                    # Convert numpy types to Python native types first
+                    val = convert_numpy_to_python(val)
+                    
                     # Force conversion to Python bool to preserve True/False
                     # iterrows/itertuples might convert to int, so explicitly convert back
                     if isinstance(val, bool):
@@ -429,6 +466,9 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
                 if pd.isna(val):
                     row_data.append(None)
                 else:
+                    # Convert numpy types to Python native types for pyodbc compatibility
+                    val = convert_numpy_to_python(val)
+                    
                     # Truncate string values if they exceed column max length
                     if isinstance(val, str) and col_name in col_max_lengths:
                         max_len = col_max_lengths[col_name]
