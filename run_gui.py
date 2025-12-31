@@ -12,12 +12,7 @@ current_dir = Path(__file__).parent.resolve()
 sys.path.insert(0, str(current_dir))
 
 try:
-    # Try new module structure first
-    try:
-        from src.gui.main_window import main
-    except ImportError:
-        # Fall back to old structure for backward compatibility
-        from data_uploader_gui import main
+    from src.gui.main_window import main
     main()
 except ImportError as e:
     print(f"Error: {e}")

@@ -35,22 +35,13 @@ except (ImportError, Exception) as e:
     HAS_DND = False
     print(f"Note: Drag-and-drop not available ({e}). You can still click to select files.")
 
-# Import the existing upload_refresh functionality
+# Import the database and validation functionality
 try:
-    # Try to import from new structure first
-    try:
-        from src.database.upload_operations import (
-            connect_from_cfg, test_connection, list_tables, get_tables_list,
-            upload_from_folders, run_sql_scripts, list_sql_files,
-            ensure_folders_from_config, get_table_columns
-        )
-    except ImportError:
-        # Fall back to old structure
-        from upload_refresh import (
-            connect_from_cfg, test_connection, list_tables, get_tables_list,
-            upload_from_folders, run_sql_scripts, list_sql_files,
-            ensure_folders_from_config, get_table_columns
-        )
+    from src.database.upload_operations import (
+        connect_from_cfg, test_connection, list_tables, get_tables_list,
+        upload_from_folders, run_sql_scripts, list_sql_files,
+        ensure_folders_from_config, get_table_columns
+    )
     import pandas as pd
     import pyodbc
 except ImportError as e:
@@ -684,8 +675,9 @@ class DataUploaderGUI:
                 
                 try:
                     from src.validation.validator import validate_file
-                except ImportError:
-                    from validate_and_clean_data import validate_file
+                except ImportError as e:
+                    self.log_message(f"Error importing validator: {e}")
+                    raise
                 
                 all_valid = True
                 for file_path in self.current_upload_files:
@@ -782,10 +774,7 @@ class DataUploaderGUI:
                             self.log_message(f"  This avoids loading the entire file into memory at once")
                             self.root.update_idletasks()
                             
-                            try:
-                                from src.database.upload_operations import upload_excel_in_chunks
-                            except ImportError:
-                                from upload_refresh import upload_excel_in_chunks
+                            from src.database.upload_operations import upload_excel_in_chunks
                             total_rows = upload_excel_in_chunks(
                                 file_path, 
                                 conn, 
@@ -830,10 +819,7 @@ class DataUploaderGUI:
                             # Prepare DataFrame (align columns, coerce types)
                             self.log_message(f"  Preparing data (type conversion, column alignment)...")
                             self.root.update_idletasks()
-                            try:
-                                from src.database.upload_operations import prepare_dataframe_for_table
-                            except ImportError:
-                                from upload_refresh import prepare_dataframe_for_table
+                            from src.database.upload_operations import prepare_dataframe_for_table
                             df_prepared = prepare_dataframe_for_table(df, table_cols, filename=file_name)
                             self.log_message(f"  ✓ Data preparation complete")
                             self.root.update_idletasks()
@@ -841,10 +827,7 @@ class DataUploaderGUI:
                             # Upload to table
                             self.log_message(f"  Starting upload to {self.current_upload_table}...")
                             self.root.update_idletasks()
-                            try:
-                                from src.database.upload_operations import upload_df_to_table
-                            except ImportError:
-                                from upload_refresh import upload_df_to_table
+                            from src.database.upload_operations import upload_df_to_table
                             upload_df_to_table(conn, df_prepared, self.current_upload_table, 
                                              upload_mode=upload_mode, table_cols=table_cols)
                             
@@ -1081,8 +1064,9 @@ class DataUploaderGUI:
                 
                 try:
                     from src.validation.validator import validate_file
-                except ImportError:
-                    from validate_and_clean_data import validate_file
+                except ImportError as e:
+                    self.log_message(f"Error importing validator: {e}")
+                    raise
                 
                 all_valid = True
                 validation_results = {}
@@ -1135,8 +1119,9 @@ class DataUploaderGUI:
             try:
                 try:
                     from src.validation.validator import clean_and_save
-                except ImportError:
-                    from validate_and_clean_data import clean_and_save
+                except ImportError as e:
+                    self.log_message(f"Error importing validator: {e}")
+                    raise
                 
                 fixed_files = []
                 failed_files = []
