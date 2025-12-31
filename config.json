@@ -1,5 +1,6 @@
 {
   "note": "Edit each folders[*].target_table if needed. Use upload_mode: 'append' (add data) or 'delete' (clear then add). Drag files directly into the GUI to upload.",
+  "sql_scripts_folder": "sql_scripts",
   "db": {
     "driver": "ODBC Driver 17 for SQL Server",
     "server": "NYPCSQL01",

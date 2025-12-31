@@ -1,3 +1,4 @@
+# Python
 .github/
 __pycache__/
 **/__pycache__/
@@ -6,4 +7,57 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Logs
+*.log
+data_uploader.log
+logs/
+
+# Temp files
+errors.txt
+temp/
+tmp/
 bulk_insert_temp/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Data files (uncomment if needed)
+# inbound/
+# *.csv
+# *.xlsx
+# *.xls
+
+# Config with sensitive data (uncomment if needed)
+# config.json
