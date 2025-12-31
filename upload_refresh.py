@@ -410,13 +410,19 @@ def upload_excel_in_chunks(file_path, conn, table, table_cols, upload_mode='appe
     log(f"  File has {total_rows:,} rows, {len(headers)} columns")
     
     # Handle upload mode
+    log(f"  Upload mode: {upload_mode}")
     cursor = conn.cursor()
     if upload_mode == 'delete':
         try:
+            log(f"  Deleting existing data from table (upload_mode='delete')...")
             cursor.execute(f"DELETE FROM {table}")
-            log(f"  Cleared existing data from table")
+            conn.commit()  # Commit the delete before starting inserts
+            log(f"  ✓ Cleared existing data from table")
         except Exception as e:
-            log(f"  Warning: Could not delete table data: {e}")
+            log(f"  ✗ Warning: Could not delete table data: {e}")
+            conn.rollback()
+    else:
+        log(f"  Appending to existing data (upload_mode='append')")
     
     # Read and process in chunks
     total_uploaded = 0
@@ -472,10 +478,13 @@ def upload_excel_in_chunks(file_path, conn, table, table_cols, upload_mode='appe
             df_prepared = prepare_dataframe_for_table(df_chunk, table_cols, filename=Path(file_path).name)
             
             # Try fast BULK INSERT first, fall back to regular method if it fails
+            # Note: For chunks after the first, we always use 'append' since table was already cleared at the start
+            chunk_upload_mode = 'append' if chunk_num > 1 else upload_mode
             bulk_success = upload_df_to_table_bulk_insert(conn, df_prepared, table, table_cols=table_cols, log_callback=log)
             if not bulk_success:
                 # Fall back to regular upload method
-                upload_df_to_table(conn, df_prepared, table, upload_mode='append', table_cols=table_cols)
+                # For chunks after the first, always append (table was already cleared at start if needed)
+                upload_df_to_table(conn, df_prepared, table, upload_mode=chunk_upload_mode, table_cols=table_cols)
             
             # CRITICAL: Commit after each chunk to avoid huge transaction log and performance degradation
             conn.commit()

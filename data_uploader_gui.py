@@ -655,6 +655,11 @@ class DataUploaderGUI:
                     table_cols = get_table_columns(conn, self.current_upload_table)
                     
                     upload_mode = self.upload_mode_var.get()
+                    self.log_message(f"Upload mode selected: {upload_mode}")
+                    if upload_mode == 'delete':
+                        self.log_message(f"  → Will DELETE existing data, then insert new data")
+                    else:
+                        self.log_message(f"  → Will APPEND new data to existing data")
                     
                     # Process each file
                     for idx, file_path in enumerate(self.current_upload_files):
