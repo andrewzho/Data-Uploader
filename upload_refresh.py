@@ -485,9 +485,7 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
                 dt_series = pd.to_datetime(df_processed[col_name], errors='coerce')
                 # Extract date part (returns date objects)
                 date_series = dt_series.dt.date
-                # Replace out-of-range dates and NaT with None
-                mask = pd.isna(dt_series) | (date_series < min_date) | (date_series > max_date)
-                date_series.loc[mask] = None
+                # Note: Invalid dates (NaT) will be handled in row-by-row processing
                 df_processed[col_name] = date_series
             except Exception:
                 # Fallback: leave as-is, will be handled row-by-row
