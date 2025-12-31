@@ -384,8 +384,7 @@ def upload_excel_in_chunks(file_path, conn, table, table_cols, upload_mode='appe
                 # If column count doesn't match, use what we have
                 log(f"  Warning: Column count mismatch (expected {len(headers)}, got {len(df_chunk.columns)})")
             
-            # Prepare this chunk
-            from upload_refresh import prepare_dataframe_for_table
+            # Prepare this chunk (function is in this same file)
             df_prepared = prepare_dataframe_for_table(df_chunk, table_cols, filename=Path(file_path).name)
             
             # Upload this chunk using regular method
