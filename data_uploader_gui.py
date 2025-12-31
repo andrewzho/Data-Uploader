@@ -235,7 +235,7 @@ class DataUploaderGUI:
         drop_zone_frame = ttk.LabelFrame(self.upload_frame, text="Drop Files Here", padding=10)
         drop_zone_frame.pack(fill='both', expand=True, padx=10, pady=5)
         
-        self.drop_zone = tk.Label(drop_zone_frame, text="Drag and drop Excel files here\nor click to select files", 
+        self.drop_zone = tk.Label(drop_zone_frame, text="Drag and drop Excel or CSV files here\nor click to select files", 
                                   font=('Arial', 12), bg='#f0f0f0', relief='sunken', 
                                   borderwidth=2, padx=20, pady=40)
         self.drop_zone.pack(fill='both', expand=True)
@@ -535,7 +535,7 @@ class DataUploaderGUI:
             cleaned_files = []
             for f in files:
                 clean_path = f.strip('{}')
-                if os.path.isfile(clean_path) and clean_path.lower().endswith(('.xlsx', '.xls')):
+                if os.path.isfile(clean_path) and clean_path.lower().endswith(('.xlsx', '.xls', '.csv')):
                     cleaned_files.append(clean_path)
             
             if cleaned_files:
@@ -552,7 +552,7 @@ class DataUploaderGUI:
         
         files = filedialog.askopenfilenames(
             title=f"Select files for {self.current_upload_table}",
-            filetypes=[("Excel files", "*.xlsx *.xls"), ("All files", "*.*")]
+            filetypes=[("Excel files", "*.xlsx *.xls"), ("CSV files", "*.csv"), ("All files", "*.*")]
         )
         
         if files:
@@ -697,15 +697,21 @@ class DataUploaderGUI:
                             
                         else:
                             # Small files - read all at once (faster for small files)
-                            self.log_message(f"  Reading Excel file...")
-                            self.root.update_idletasks()
-                            
-                            try:
-                                df = pd.read_excel(file_path, engine='openpyxl')
-                            except Exception as e:
-                                self.log_message(f"  (Falling back to default reader...)")
+                            file_ext = Path(file_path).suffix.lower()
+                            if file_ext == '.csv':
+                                self.log_message(f"  Reading CSV file...")
                                 self.root.update_idletasks()
-                                df = pd.read_excel(file_path)
+                                df = pd.read_csv(file_path)
+                            else:
+                                # Excel file
+                                self.log_message(f"  Reading Excel file...")
+                                self.root.update_idletasks()
+                                try:
+                                    df = pd.read_excel(file_path, engine='openpyxl')
+                                except Exception as e:
+                                    self.log_message(f"  (Falling back to default reader...)")
+                                    self.root.update_idletasks()
+                                    df = pd.read_excel(file_path)
                             
                             elapsed = time.time() - start_time
                             self.log_message(f"  ✓ Loaded {len(df):,} rows, {len(df.columns)} columns")

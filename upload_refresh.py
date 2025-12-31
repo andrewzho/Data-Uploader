@@ -358,11 +358,11 @@ def upload_df_to_table_bulk_insert(conn, df, table, table_cols=None, log_callbac
 
 def upload_excel_in_chunks(file_path, conn, table, table_cols, upload_mode='append', chunk_size=25000, log_callback=None):
     """
-    Read and upload Excel file in chunks to avoid loading entire file into memory.
+    Read and upload Excel or CSV file in chunks to avoid loading entire file into memory.
     This is much more memory-efficient for large files.
     
     Args:
-        file_path: Path to Excel file
+        file_path: Path to Excel or CSV file
         conn: Database connection
         table: Target table name
         table_cols: Table column metadata
@@ -380,20 +380,32 @@ def upload_excel_in_chunks(file_path, conn, table, table_cols, upload_mode='appe
             print(msg, flush=True)
     
     import time
-    from openpyxl import load_workbook
+    file_ext = Path(file_path).suffix.lower()
     
-    # First, get total row count and column names using read_only mode (fast, memory-efficient)
+    # First, get total row count and column names
     log(f"  Analyzing file structure...")
-    wb = load_workbook(filename=file_path, read_only=True, data_only=True)
-    ws = wb.active
     
-    # Get column headers from first row
-    headers = []
-    for cell in ws[1]:
-        headers.append(cell.value if cell.value is not None else f"Column{len(headers)+1}")
-    
-    total_rows = ws.max_row - 1  # Subtract header row
-    wb.close()  # Close read-only workbook
+    if file_ext == '.csv':
+        # For CSV, read first row to get headers and count total rows
+        df_sample = pd.read_csv(file_path, nrows=1)
+        headers = list(df_sample.columns)
+        
+        # Count total rows (this is fast for CSV)
+        with open(file_path, 'r', encoding='utf-8-sig') as f:
+            total_rows = sum(1 for line in f) - 1  # Subtract header row
+    else:
+        # Excel file - use openpyxl for efficient reading
+        from openpyxl import load_workbook
+        wb = load_workbook(filename=file_path, read_only=True, data_only=True)
+        ws = wb.active
+        
+        # Get column headers from first row
+        headers = []
+        for cell in ws[1]:
+            headers.append(cell.value if cell.value is not None else f"Column{len(headers)+1}")
+        
+        total_rows = ws.max_row - 1  # Subtract header row
+        wb.close()  # Close read-only workbook
     
     log(f"  File has {total_rows:,} rows, {len(headers)} columns")
     
@@ -426,17 +438,24 @@ def upload_excel_in_chunks(file_path, conn, table, table_cols, upload_mode='appe
             chunk_start = time.time()
             log(f"  Reading chunk {chunk_num} (rows {start_row}-{start_row + rows_to_read - 1})...")
             
-            # Read chunk: skiprows is a list of row indices to skip (0-indexed, excluding header)
-            # We need to skip: header (row 0) and all rows before start_row
-            # start_row is 1-indexed (row 2 = first data row), so we skip rows 0 through start_row-2
+            # Read chunk based on file type
             skip_list = list(range(0, start_row - 1))  # Skip header (0) and rows before start_row
             
-            df_chunk = pd.read_excel(
-                file_path, 
-                engine='openpyxl',
-                skiprows=skip_list,  # List of row indices to skip (0-indexed)
-                nrows=rows_to_read
-            )
+            if file_ext == '.csv':
+                # For CSV, use skiprows and nrows
+                df_chunk = pd.read_csv(
+                    file_path,
+                    skiprows=skip_list,
+                    nrows=rows_to_read
+                )
+            else:
+                # Excel file
+                df_chunk = pd.read_excel(
+                    file_path, 
+                    engine='openpyxl',
+                    skiprows=skip_list,  # List of row indices to skip (0-indexed)
+                    nrows=rows_to_read
+                )
             
             if df_chunk.empty:
                 break  # No more data
