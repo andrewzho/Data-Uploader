@@ -26,6 +26,7 @@ import re
 import sys
 import tempfile
 import csv
+import uuid
 from datetime import date as date_type
 
 try:
@@ -285,9 +286,15 @@ def upload_df_to_table_bulk_insert(conn, df, table, table_cols=None, log_callbac
     # Write to temporary CSV file
     temp_csv = None
     try:
-        # Create temp file
-        temp_fd, temp_csv = tempfile.mkstemp(suffix='.csv', prefix='bulk_insert_', text=True)
-        os.close(temp_fd)  # Close file descriptor, we'll use the path
+        # Use project directory instead of temp folder (SQL Server can access it better)
+        # Get the directory where this script is located
+        project_dir = Path(__file__).parent.resolve()
+        bulk_dir = project_dir / 'bulk_insert_temp'
+        bulk_dir.mkdir(exist_ok=True)  # Create directory if it doesn't exist
+        
+        # Create temp file in project directory
+        temp_filename = f'bulk_insert_{uuid.uuid4().hex[:8]}.csv'
+        temp_csv = str(bulk_dir / temp_filename)
         
         log(f"  Writing {len(df_export):,} rows to temporary CSV file...")
         # Write CSV with proper formatting for SQL Server BULK INSERT
@@ -302,7 +309,8 @@ def upload_df_to_table_bulk_insert(conn, df, table, table_cols=None, log_callbac
         )
         
         # Get the full path (SQL Server needs absolute path)
-        csv_path = os.path.abspath(temp_csv).replace('\\', '/')  # SQL Server uses forward slashes
+        # Use forward slashes for SQL Server compatibility
+        csv_path = str(Path(temp_csv).resolve()).replace('\\', '/')
         
         # Try BULK INSERT
         # Note: This requires the file to be accessible to SQL Server
