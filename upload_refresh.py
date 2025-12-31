@@ -26,7 +26,6 @@ import re
 import sys
 import tempfile
 import csv
-import uuid
 from datetime import date as date_type
 
 try:
@@ -251,111 +250,6 @@ def split_sql_batches(sql_text: str):
     # Split on lines that contain only GO (case-insensitive)
     batches = re.split(r'(?im)^\s*GO\s*;?\s*$', sql_text)
     return [b.strip() for b in batches if b.strip()]
-
-
-def upload_df_to_table_bulk_insert(conn, df, table, table_cols=None, log_callback=None):
-    """
-    Fast bulk insert using SQL Server BULK INSERT (like Import/Export Wizard).
-    This is MUCH faster than executemany for large datasets.
-    
-    Writes DataFrame to CSV and uses BULK INSERT statement.
-    Falls back to regular upload if BULK INSERT fails.
-    """
-    def log(msg):
-        if log_callback:
-            log_callback(msg)
-        else:
-            print(msg, flush=True)
-    
-    cursor = conn.cursor()
-    cols = list(df.columns)
-    if not cols:
-        log('No columns found in file, skipping upload to ' + table)
-        return False
-    
-    # Prepare data - convert to proper types for CSV export
-    df_export = df.copy()
-    
-    # Replace NaN/NaT with empty strings for CSV (SQL Server will convert to NULL)
-    for col in df_export.columns:
-        if df_export[col].dtype == 'object':
-            df_export[col] = df_export[col].fillna('')
-        else:
-            df_export[col] = df_export[col].fillna('')
-    
-    # Write to temporary CSV file
-    temp_csv = None
-    try:
-        # Use project directory instead of temp folder (SQL Server can access it better)
-        # Get the directory where this script is located
-        project_dir = Path(__file__).parent.resolve()
-        bulk_dir = project_dir / 'bulk_insert_temp'
-        bulk_dir.mkdir(exist_ok=True)  # Create directory if it doesn't exist
-        
-        # Create temp file in project directory
-        temp_filename = f'bulk_insert_{uuid.uuid4().hex[:8]}.csv'
-        temp_csv = str(bulk_dir / temp_filename)
-        
-        log(f"  Writing {len(df_export):,} rows to temporary CSV file...")
-        # Write CSV with proper formatting for SQL Server BULK INSERT
-        df_export.to_csv(
-            temp_csv,
-            index=False,
-            header=False,  # BULK INSERT doesn't use headers
-            quoting=csv.QUOTE_MINIMAL,
-            escapechar='\\',
-            lineterminator='\n',
-            encoding='utf-8-sig'  # UTF-8 with BOM for SQL Server compatibility
-        )
-        
-        # Get the full path (SQL Server needs absolute path)
-        # Use forward slashes for SQL Server compatibility
-        csv_path = str(Path(temp_csv).resolve()).replace('\\', '/')
-        
-        # Try BULK INSERT
-        # Note: This requires the file to be accessible to SQL Server
-        # For network/local file access, SQL Server service account needs permissions
-        bulk_insert_sql = f"""
-        BULK INSERT {table}
-        FROM '{csv_path}'
-        WITH (
-            FIELDTERMINATOR = ',',
-            ROWTERMINATOR = '\\n',
-            FIRSTROW = 1,
-            CODEPAGE = '65001',  -- UTF-8
-            TABLOCK,  -- Table lock for faster inserts
-            BATCHSIZE = 10000,  -- Commit every 10k rows
-            CHECK_CONSTRAINTS  -- Validate constraints
-        )
-        """
-        
-        log(f"  Attempting BULK INSERT (fast method)...")
-        try:
-            cursor.execute(bulk_insert_sql)
-            conn.commit()
-            log(f"  ✓ BULK INSERT successful: {len(df_export):,} rows inserted")
-            return True
-        except Exception as e:
-            # BULK INSERT failed - likely file access issue
-            # Fall back to regular method
-            log(f"  BULK INSERT failed (file access issue?): {e}")
-            log(f"  Falling back to standard insert method...")
-            conn.rollback()
-            return False
-            
-    except Exception as e:
-        log(f"  Error in BULK INSERT preparation: {e}")
-        log(f"  Falling back to standard insert method...")
-        return False
-    finally:
-        # Clean up temp file
-        if temp_csv and os.path.exists(temp_csv):
-            try:
-                os.remove(temp_csv)
-            except:
-                pass
-
-
 def upload_excel_in_chunks(file_path, conn, table, table_cols, upload_mode='append', chunk_size=25000, log_callback=None):
     """
     Read and upload Excel or CSV file in chunks to avoid loading entire file into memory.
@@ -477,14 +371,10 @@ def upload_excel_in_chunks(file_path, conn, table, table_cols, upload_mode='appe
             from upload_refresh import prepare_dataframe_for_table
             df_prepared = prepare_dataframe_for_table(df_chunk, table_cols, filename=Path(file_path).name)
             
-            # Try fast BULK INSERT first, fall back to regular method if it fails
-            # Note: For chunks after the first, we always use 'append' since table was already cleared at the start
+            # Upload this chunk using regular method
+            # For chunks after the first, always append (table was already cleared at start if needed)
             chunk_upload_mode = 'append' if chunk_num > 1 else upload_mode
-            bulk_success = upload_df_to_table_bulk_insert(conn, df_prepared, table, table_cols=table_cols, log_callback=log)
-            if not bulk_success:
-                # Fall back to regular upload method
-                # For chunks after the first, always append (table was already cleared at start if needed)
-                upload_df_to_table(conn, df_prepared, table, upload_mode=chunk_upload_mode, table_cols=table_cols)
+            upload_df_to_table(conn, df_prepared, table, upload_mode=chunk_upload_mode, table_cols=table_cols)
             
             # CRITICAL: Commit after each chunk to avoid huge transaction log and performance degradation
             conn.commit()
