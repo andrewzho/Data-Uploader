@@ -666,7 +666,7 @@ class DataUploaderGUI:
                         # For large files, use chunked processing to avoid loading everything into memory
                         import time
                         start_time = time.time()
-                        chunk_size = 50000  # Process 50,000 rows at a time
+                        chunk_size = 25000  # Process 25,000 rows at a time (reduced for better performance)
                         
                         if file_size_mb > 50:
                             # Use chunked processing for large files - MUCH more memory efficient

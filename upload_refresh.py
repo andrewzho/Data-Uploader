@@ -250,7 +250,7 @@ def split_sql_batches(sql_text: str):
     return [b.strip() for b in batches if b.strip()]
 
 
-def upload_excel_in_chunks(file_path, conn, table, table_cols, upload_mode='append', chunk_size=50000, log_callback=None):
+def upload_excel_in_chunks(file_path, conn, table, table_cols, upload_mode='append', chunk_size=25000, log_callback=None):
     """
     Read and upload Excel file in chunks to avoid loading entire file into memory.
     This is much more memory-efficient for large files.
@@ -349,6 +349,9 @@ def upload_excel_in_chunks(file_path, conn, table, table_cols, upload_mode='appe
             # Upload this chunk (always append since we handle delete mode above)
             upload_df_to_table(conn, df_prepared, table, upload_mode='append', table_cols=table_cols)
             
+            # CRITICAL: Commit after each chunk to avoid huge transaction log and performance degradation
+            conn.commit()
+            
             total_uploaded += len(df_prepared)
             chunk_time = time.time() - chunk_start
             progress_pct = (total_uploaded / total_rows) * 100 if total_rows > 0 else 0
@@ -361,12 +364,18 @@ def upload_excel_in_chunks(file_path, conn, table, table_cols, upload_mode='appe
             # Free memory explicitly
             del df_chunk
             del df_prepared
+            import gc
+            gc.collect()  # Force garbage collection to free memory
             
         except Exception as e:
             log(f"  ✗ Error processing chunk {chunk_num}: {e}")
             raise
     
-    conn.commit()
+    # Final commit (though we already commit after each chunk)
+    try:
+        conn.commit()
+    except:
+        pass  # May already be committed
     log(f"  ✓ Chunked processing complete: {total_uploaded:,} total rows uploaded")
     return total_uploaded
 
@@ -423,6 +432,11 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
     col_data_types = {}
     col_is_date_only = {}  # Track which columns are DATE (not DATETIME)
     col_is_datetime = {}  # Track which columns are DATETIME/DATETIME2 (keep time component)
+    # Cache date range constants to avoid recreating on every row
+    min_date = date_type(1, 1, 1)  # SQL Server DATE minimum
+    max_date = date_type(9999, 12, 31)  # SQL Server DATE maximum
+    min_datetime = pd.Timestamp('1753-01-01')  # SQL Server DATETIME minimum
+    max_datetime = pd.Timestamp('9999-12-31 23:59:59')  # SQL Server DATETIME maximum
     if table_cols:
         for col_name, sql_type, _ in table_cols:
             sql_type_lower = sql_type.lower()
@@ -490,9 +504,7 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
                                 else:
                                     # Get date part
                                     date_val = val.date()
-                                    # Validate date range for SQL Server DATE type
-                                    min_date = date_type(1, 1, 1)  # SQL Server DATE minimum
-                                    max_date = date_type(9999, 12, 31)  # SQL Server DATE maximum
+                                    # Validate date range for SQL Server DATE type (using cached constants)
                                     if min_date <= date_val <= max_date:
                                         val = date_val
                                     else:
@@ -510,8 +522,7 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
                             # Python datetime object - extract date part
                             try:
                                 date_val = val.date()
-                                min_date = date_type(1, 1, 1)
-                                max_date = date_type(9999, 12, 31)
+                                # Use cached date constants
                                 if min_date <= date_val <= max_date:
                                     val = date_val
                                 else:
@@ -529,8 +540,7 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
                                     val = None
                                 else:
                                     date_val = parsed.date()
-                                    min_date = date_type(1, 1, 1)
-                                    max_date = date_type(9999, 12, 31)
+                                    # Use cached date constants
                                     if min_date <= date_val <= max_date:
                                         val = date_val
                                     else:
@@ -550,11 +560,7 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
                             else:
                                 # Convert to Python datetime for pyodbc compatibility
                                 try:
-                                    # Validate datetime is within SQL Server range
-                                    # SQL Server DATETIME: 1753-01-01 to 9999-12-31
-                                    # SQL Server DATETIME2: 0001-01-01 to 9999-12-31
-                                    min_datetime = pd.Timestamp('1753-01-01')  # Conservative minimum
-                                    max_datetime = pd.Timestamp('9999-12-31 23:59:59')
+                                    # Validate datetime is within SQL Server range (using cached constants)
                                     if min_datetime <= val <= max_datetime:
                                         # Convert to Python datetime
                                         val = val.to_pydatetime()
@@ -574,8 +580,7 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
                                 if pd.isna(parsed):
                                     val = None
                                 else:
-                                    min_datetime = pd.Timestamp('1753-01-01')
-                                    max_datetime = pd.Timestamp('9999-12-31 23:59:59')
+                                    # Use cached datetime constants
                                     if min_datetime <= parsed <= max_datetime:
                                         val = parsed.to_pydatetime()
                                     else:
@@ -630,8 +635,8 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
     cursor.fast_executemany = True
     
     # Process in batches to avoid memory errors with large datasets
-    # Default batch size: 10,000 rows (adjustable based on available memory)
-    batch_size = 10000
+    # Reduced batch size for better performance and more frequent commits
+    batch_size = 5000  # Reduced from 10,000 for better performance
     total_rows = len(data)
     
     try:
@@ -644,10 +649,11 @@ def upload_df_to_table(conn, df, table, upload_mode='append', table_cols=None):
                 batch_num = (i // batch_size) + 1
                 print(f"  Uploading batch {batch_num}/{total_batches} ({len(batch):,} rows)...", end=' ', flush=True)
                 cursor.executemany(sql, batch)
+                # CRITICAL: Commit after each batch to avoid transaction log growth
+                conn.commit()
                 rows_uploaded += len(batch)
                 progress_pct = (rows_uploaded / total_rows) * 100
                 print(f"✓ ({rows_uploaded:,}/{total_rows:,} rows, {progress_pct:.1f}%)", flush=True)
-            conn.commit()
             print(f"✓ All {total_rows:,} rows uploaded successfully!", flush=True)
         else:
             # Small dataset - upload all at once
