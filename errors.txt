@@ -1,1 +1,12 @@
-BULK INSERT failed (file access issue?): ('42000', '[42000] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Cannot bulk load. The file "C:/Users/aho/AppData/Local/Temp/bulk_insert_72xthch4.csv" does not exist or you don\'t have file access rights. (4860) (SQLExecDirectW)')
+C:\Users\aho\OneDrive - New York Proton Center\Desktop\Auto-DB-Refresh\upload_refresh.py:591: SettingWithCopyWarning: modifications to a property of a datetimelike object are not supported and are discarded. Change values on the original.
+  date_series.loc[mask] = None
+C:\Users\aho\OneDrive - New York Proton Center\Desktop\Auto-DB-Refresh\upload_refresh.py:591: SettingWithCopyWarning: modifications to a property of a datetimelike object are not supported and are discarded. Change values on the original.
+  date_series.loc[mask] = None
+C:\Users\aho\OneDrive - New York Proton Center\Desktop\Auto-DB-Refresh\upload_refresh.py:591: SettingWithCopyWarning: modifications to a property of a datetimelike object are not supported and are discarded. Change values on the original.
+  date_series.loc[mask] = None
+
+  ✓ Chunk 21: 25,000 rows uploaded (525,000/977,492, 53.7%) in 12.2s
+[2025-12-31 09:33:07]   Reading chunk 22 (rows 525002-550001)...
+[2025-12-31 09:33:08]   Writing 25,000 rows to temporary CSV file...
+[2025-12-31 09:33:09]   Attempting BULK INSERT (fast method)...
+[2025-12-31 09:33:09]   BULK INSERT failed (file access issue?): ('42000', '[42000] [Microsoft][ODBC Driver 17 for SQL Server][SQL Server]Cannot bulk load. The file "C:/Users/aho/OneDrive - New York Proton Center/Desktop/Auto-DB-Refresh/bulk_insert_temp/bulk_insert_dd7ba633.csv" does not exist or you don\'t have file access rights. (4860) (SQLExecDirectW)')
