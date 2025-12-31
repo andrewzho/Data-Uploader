@@ -581,5 +581,9 @@ UPDATE r
 SET r.TransMRN = r.[Patient ID] + '-' + r.[Visit Number]
 FROM DataCleanup.dbo.Ref r ;
 
+-- Step 10: Remove dummy records from Fractions table
+DELETE FROM [DataCleanup].[dbo].[fractions]
+WHERE [ICD 10] IS NULL OR LTRIM(RTRIM([ICD 10])) = '' OR [Patient Name] LIKE 'zz%' or [Patient ID1] LIKE 'TW%';
+
 -- End of Script 1
 -- Next: Run "2 - Isolating First, Last, Middle - Transactions.sql"
