@@ -54,7 +54,7 @@ Thumbs.db
 desktop.ini
 
 # Data files (uncomment if needed)
-# inbound/
+inbound/
 # *.csv
 # *.xlsx
 # *.xls

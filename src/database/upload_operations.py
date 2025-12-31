@@ -86,6 +86,21 @@ def safe_dirname(name: str) -> str:
     return re.sub(r'[\\/*?:"<>|]', '_', name)
 
 
+def get_project_root():
+    """
+    Get the project root directory.
+    Works whether called from src/database/ or from project root.
+    """
+    current = Path(__file__).parent.resolve()
+    
+    # If we're in src/database/, go up 2 levels to project root
+    if current.name == 'database' and current.parent.name == 'src':
+        return current.parent.parent
+    
+    # Otherwise assume we're already at project root (for backward compatibility)
+    return current
+
+
 def create_inbound_dirs(sql_files, base: Path):
     # Ensure the base inbound directory exists (base is typically project/inbound)
     base.mkdir(parents=True, exist_ok=True)
@@ -97,7 +112,8 @@ def create_inbound_dirs(sql_files, base: Path):
         # Return relative folder path (relative to project root) so the generated
         # `config.json` is portable across machines. e.g. 'inbound/1 - ScriptName'
         try:
-            rel = str(d.relative_to(Path(__file__).parent.resolve()))
+            project_root = get_project_root()
+            rel = str(d.relative_to(project_root))
         except Exception:
             # Fallback: use a path under 'inbound'
             rel = os.path.join('inbound', safe_dirname(stem))
@@ -123,7 +139,8 @@ def write_template_config(sql_files, folders, path: Path):
         p = Path(fd)
         if p.is_absolute():
             try:
-                folder_value = str(p.relative_to(Path(__file__).parent.resolve()))
+                project_root = get_project_root()
+                folder_value = str(p.relative_to(project_root))
             except Exception:
                 # leave absolute path if we can't relativize it
                 folder_value = fd
@@ -861,7 +878,7 @@ def resolve_folder_path(folder: str, base: Path) -> Path:
 def find_files(folder: str, patterns, base: Path = None):
     """Find files matching patterns in folder. Auto-resolves and creates folder if needed."""
     if base is None:
-        base = Path(__file__).parent.resolve()
+        base = get_project_root()
     p = resolve_folder_path(folder, base)
     files = []
     for pat in patterns:
@@ -1127,7 +1144,7 @@ def upload_from_folders(cfg_path: Path):
     if pd is None:
         raise SystemExit('pandas is not installed. Install with: pip install pandas openpyxl')
     cfg = json.load(open(cfg_path, 'r', encoding='utf-8'))
-    base_dir = Path(__file__).parent.resolve()
+    base_dir = get_project_root()
 
     # First scan all configured folders to see if any matching files exist.
     any_files_found = False
@@ -1190,7 +1207,7 @@ def run_sql_scripts(seq_files, cfg_path: Path):
 
 
 def main():
-    base = Path(__file__).parent.resolve()
+    base = get_project_root()
     inbound = base / 'inbound'
     cfg_path = base / 'config.json'
 
@@ -1203,7 +1220,12 @@ def main():
     p.add_argument('--list-tables', action='store_true', help='List accessible base tables via INFORMATION_SCHEMA')
     args = p.parse_args()
 
-    sql_files = list_sql_files(base)
+    # Look for SQL files in sql_scripts folder first, then fall back to base
+    sql_scripts_folder = base / 'sql_scripts'
+    if sql_scripts_folder.exists():
+        sql_files = list_sql_files(sql_scripts_folder)
+    else:
+        sql_files = list_sql_files(base)
     if not sql_files:
         print('No .sql files found in current directory.')
         return

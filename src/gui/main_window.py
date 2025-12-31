@@ -82,7 +82,8 @@ class DataUploaderGUI:
         self.root.configure(bg='#f0f0f0')
         
         # Configuration
-        self.config_path = Path(__file__).parent / 'config.json'
+        # Go up from src/gui/main_window.py to project root
+        self.config_path = Path(__file__).parent.parent.parent / 'config.json'
         self.config = self.load_config()
         
         # Threading for long operations
@@ -1172,7 +1173,8 @@ class DataUploaderGUI:
                 self.progress_var.set(0)
                 self.log_message("Starting upload process...")
                 
-                base = Path(__file__).parent.resolve()
+                # Get project root (3 levels up from src/gui/main_window.py)
+                base = Path(__file__).parent.parent.parent.resolve()
                 inbound_base = base / 'inbound'
                 inbound_base.mkdir(exist_ok=True)
                 
