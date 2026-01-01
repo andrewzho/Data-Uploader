@@ -1190,19 +1190,53 @@ def upload_from_folders(cfg_path: Path):
         conn.close()
 
 
-def run_sql_scripts(seq_files, cfg_path: Path):
+def run_sql_scripts(seq_files, cfg_path: Path, capture_results=False):
+    """
+    Run SQL scripts in sequence.
+    
+    Args:
+        seq_files: List of SQL file paths to execute
+        cfg_path: Path to config.json
+        capture_results: If True, capture and return SELECT query results
+        
+    Returns:
+        If capture_results=True, returns dict with {filename: [results]}
+        Otherwise returns None
+    """
     cfg = json.load(open(cfg_path, 'r', encoding='utf-8'))
     conn = connect_from_cfg(cfg['db'])
+    results = {} if capture_results else None
+    
     try:
         cursor = conn.cursor()
         for sqlfile in seq_files:
             print('Running', sqlfile)
+            filename = Path(sqlfile).name
             text = open(sqlfile, 'r', encoding='utf-8-sig').read()
+            
+            if capture_results:
+                results[filename] = []
+            
             for batch in split_sql_batches(text):
                 cursor.execute(batch)
+                
+                # If this is a SELECT query, fetch results
+                if capture_results and cursor.description is not None:
+                    columns = [column[0] for column in cursor.description]
+                    rows = cursor.fetchall()
+                    
+                    if rows:
+                        results[filename].append({
+                            'columns': columns,
+                            'rows': rows,
+                            'row_count': len(rows)
+                        })
+                    
         conn.commit()
     finally:
         conn.close()
+    
+    return results if capture_results else None
 
 
 def main():

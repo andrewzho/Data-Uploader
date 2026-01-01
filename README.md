@@ -44,6 +44,13 @@ python run_gui.py
 - Click **"Run Selected Scripts"** or **"Run All Scripts"**
 - Scripts execute in alphabetical/numerical order (e.g., 1 - Script.sql, 2 - Script.sql)
 
+### 6. Run Error Checks (Error Checking Tab)
+- After upload and SQL scripts complete, run error checking scripts
+- View available error checking scripts in the list
+- Select specific checks or run all checks
+- Click **"Run Selected Check"** or **"Run All Checks"**
+- Review results in the Logs & Status tab
+
 ## Features
 
 ### Smart Column Matching

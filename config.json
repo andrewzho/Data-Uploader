@@ -1,6 +1,7 @@
 {
   "note": "Database configuration for Data Uploader. Tables are discovered automatically from the database.",
   "sql_scripts_folder": "sql_scripts",
+  "error_checks_folder": "error_checks",
   "db": {
     "driver": "ODBC Driver 17 for SQL Server",
     "server": "NYPCSQL01",

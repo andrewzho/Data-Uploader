@@ -151,6 +151,8 @@ class DataUploaderGUI:
         print("DEBUG: Upload tab created")
         self.create_sql_tab()
         print("DEBUG: SQL tab creation attempted")
+        self.create_error_check_tab()
+        print("DEBUG: Error Check tab creation attempted")
         self.create_logs_tab()
         print("DEBUG: Logs tab creation attempted")
         print(f"DEBUG: Total tabs in notebook: {self.notebook.index('end')}")
@@ -394,6 +396,66 @@ class DataUploaderGUI:
             ttk.Label(self.sql_frame, text=f"Error loading SQL Scripts tab: {e}", 
                      foreground='red').pack(pady=20)
         
+    def create_error_check_tab(self):
+        """Create error checking script execution tab"""
+        try:
+            self.error_check_frame = ttk.Frame(self.notebook)
+            self.notebook.add(self.error_check_frame, text="Error Checking")
+            print("DEBUG: Error Checking tab created and added to notebook")
+            
+            ttk.Label(self.error_check_frame, text="Error Checking Scripts", 
+                     font=('Arial', 14, 'bold')).pack(pady=10)
+            
+            ttk.Label(self.error_check_frame, text="Run these scripts to check for data errors after upload", 
+                     font=('Arial', 9), foreground='#666').pack(pady=5)
+            
+            # Error check files list
+            error_list_frame = ttk.LabelFrame(self.error_check_frame, text="Available Error Check Scripts", padding=10)
+            error_list_frame.pack(fill='x', padx=10, pady=5)
+            
+            self.error_check_listbox = tk.Listbox(error_list_frame, height=6)
+            error_scroll = ttk.Scrollbar(error_list_frame, orient='vertical', command=self.error_check_listbox.yview)
+            self.error_check_listbox.configure(yscrollcommand=error_scroll.set)
+            
+            self.error_check_listbox.pack(side='left', fill='both', expand=True)
+            error_scroll.pack(side='right', fill='y')
+            
+            # Error check buttons
+            error_button_frame = ttk.Frame(self.error_check_frame)
+            error_button_frame.pack(fill='x', padx=10, pady=10)
+            
+            ttk.Button(error_button_frame, text="Refresh Error Check List", 
+                      command=self.refresh_error_check_list).pack(side='left', padx=5)
+            ttk.Button(error_button_frame, text="Run Selected Check", 
+                      command=self.run_selected_error_check).pack(side='left', padx=5)
+            ttk.Button(error_button_frame, text="Run All Checks", 
+                      command=self.run_all_error_checks).pack(side='left', padx=5)
+            ttk.Button(error_button_frame, text="Clear Results", 
+                      command=self.clear_error_check_results).pack(side='left', padx=5)
+            
+            # Results display area
+            results_frame = ttk.LabelFrame(self.error_check_frame, text="Error Check Results", padding=10)
+            results_frame.pack(fill='both', expand=True, padx=10, pady=5)
+            
+            self.error_check_results = scrolledtext.ScrolledText(results_frame, height=15, width=80, 
+                                                                  font=('Consolas', 9))
+            self.error_check_results.pack(fill='both', expand=True)
+            
+            # Add initial message
+            self.error_check_results.insert('1.0', 'Select and run error checking scripts to see results here.\n\n'
+                                                   'Results will show any data quality issues found.')
+            self.error_check_results.configure(state='disabled')
+        except Exception as e:
+            # If error check tab creation fails, log it but don't crash
+            print(f"Error creating Error Check tab: {e}")
+            import traceback
+            traceback.print_exc()
+            # Create a minimal error check tab so the app doesn't break
+            self.error_check_frame = ttk.Frame(self.notebook)
+            self.notebook.add(self.error_check_frame, text="Error Checking (Error)")
+            ttk.Label(self.error_check_frame, text=f"Error loading Error Checking tab: {e}", 
+                     foreground='red').pack(pady=20)
+        
     def create_logs_tab(self):
         """Create logging and status tab"""
         try:
@@ -458,6 +520,7 @@ class DataUploaderGUI:
             self.toggle_auth()
             self.refresh_table_list()
             self.refresh_sql_list()
+            self.refresh_error_check_list()
             # Refresh quick tables in upload tab if it exists
             if hasattr(self, 'quick_table_combo'):
                 self.refresh_quick_tables()
@@ -1314,6 +1377,134 @@ class DataUploaderGUI:
         """Run all SQL scripts"""
         self.sql_listbox.selection_set(0, tk.END)
         self.run_selected_sql()
+    
+    def refresh_error_check_list(self):
+        """Refresh the error checking scripts list"""
+        try:
+            self.error_check_listbox.delete(0, tk.END)
+            base = Path(__file__).parent.parent.parent.resolve()  # Go up to project root
+            
+            # Check if error_checks folder exists
+            error_checks_folder = base / 'error_checks'
+            if error_checks_folder.exists():
+                error_files = list_sql_files(error_checks_folder)
+            else:
+                error_files = []
+                self.log_message("Warning: error_checks folder not found")
+            
+            for error_file in error_files:
+                self.error_check_listbox.insert(tk.END, error_file)
+            
+            self.log_message(f"Found {len(error_files)} error checking scripts")
+        except Exception as e:
+            self.log_message(f"Error refreshing error check list: {e}")
+    
+    def run_selected_error_check(self):
+        """Run selected error checking scripts"""
+        selected = self.error_check_listbox.curselection()
+        if not selected:
+            messagebox.showwarning("No Selection", "Please select error checking scripts to run.")
+            return
+        
+        def run_error_check_process():
+            try:
+                # Clear and prepare results display
+                self.error_check_results.configure(state='normal')
+                self.error_check_results.delete('1.0', tk.END)
+                self.error_check_results.insert(tk.END, "Running error checking scripts...\n")
+                self.error_check_results.insert(tk.END, "=" * 80 + "\n\n")
+                self.error_check_results.see(tk.END)
+                self.error_check_results.update()
+                
+                self.log_message("Starting error checking scripts...")
+                
+                # Get selected files
+                base = Path(__file__).parent.parent.parent.resolve()  # Go up to project root
+                error_checks_folder = base / 'error_checks'
+                
+                if error_checks_folder.exists():
+                    error_files = list_sql_files(error_checks_folder)
+                    selected_files = [error_files[i] for i in selected]
+                    full_paths = [str(error_checks_folder / f) for f in selected_files]
+                    
+                    # Run error checking scripts with result capture
+                    results = run_sql_scripts(full_paths, self.config_path, capture_results=True)
+                    
+                    # Display results in the error check tab
+                    if results:
+                        total_issues = 0
+                        for filename, file_results in results.items():
+                            self.error_check_results.insert(tk.END, f"📋 {filename}\n")
+                            self.error_check_results.insert(tk.END, "-" * 80 + "\n")
+                            
+                            if not file_results:
+                                self.error_check_results.insert(tk.END, "  ✓ No results returned (script executed successfully)\n\n")
+                            else:
+                                for result_set in file_results:
+                                    row_count = result_set['row_count']
+                                    total_issues += row_count
+                                    
+                                    if row_count == 0:
+                                        self.error_check_results.insert(tk.END, "  ✓ No errors found!\n\n")
+                                    else:
+                                        self.error_check_results.insert(tk.END, f"  ⚠️  Found {row_count} issue(s):\n\n")
+                                        
+                                        # Display column headers
+                                        columns = result_set['columns']
+                                        header = "  " + " | ".join(str(col)[:20].ljust(20) for col in columns)
+                                        self.error_check_results.insert(tk.END, header + "\n")
+                                        self.error_check_results.insert(tk.END, "  " + "-" * len(header) + "\n")
+                                        
+                                        # Display rows (limit to first 100 to avoid overwhelming the display)
+                                        rows = result_set['rows']
+                                        for i, row in enumerate(rows[:100], 1):
+                                            row_str = "  " + " | ".join(str(val)[:20].ljust(20) if val is not None else "NULL".ljust(20) for val in row)
+                                            self.error_check_results.insert(tk.END, row_str + "\n")
+                                        
+                                        if row_count > 100:
+                                            self.error_check_results.insert(tk.END, f"\n  ... and {row_count - 100} more rows\n")
+                                        
+                                        self.error_check_results.insert(tk.END, "\n")
+                        
+                        # Summary
+                        self.error_check_results.insert(tk.END, "=" * 80 + "\n")
+                        if total_issues == 0:
+                            self.error_check_results.insert(tk.END, "✓ All checks passed! No issues found.\n")
+                        else:
+                            self.error_check_results.insert(tk.END, f"⚠️  Total issues found: {total_issues}\n")
+                    
+                    self.error_check_results.see(tk.END)
+                    self.error_check_results.configure(state='disabled')
+                    
+                    self.log_message("✓ Error checking scripts completed!")
+                    self.operation_queue.put(("success", "Error checking scripts completed!"))
+                else:
+                    raise FileNotFoundError("error_checks folder not found")
+                
+            except Exception as e:
+                self.error_check_results.insert(tk.END, f"\n✗ Error checking failed: {e}\n")
+                self.error_check_results.see(tk.END)
+                self.error_check_results.configure(state='disabled')
+                
+                self.log_message(f"✗ Error checking failed: {e}")
+                import traceback
+                self.log_message(traceback.format_exc())
+                self.operation_queue.put(("error", f"Error checking failed: {e}"))
+        
+        threading.Thread(target=run_error_check_process, daemon=True).start()
+    
+    def run_all_error_checks(self):
+        """Run all error checking scripts"""
+        self.error_check_listbox.selection_set(0, tk.END)
+        self.run_selected_error_check()
+    
+    def clear_error_check_results(self):
+        """Clear the error check results display"""
+        self.error_check_results.configure(state='normal')
+        self.error_check_results.delete('1.0', tk.END)
+        self.error_check_results.insert('1.0', 'Select and run error checking scripts to see results here.\n\n'
+                                               'Results will show any data quality issues found.')
+        self.error_check_results.configure(state='disabled')
     
     def log_message(self, message):
         """Add message to log"""
