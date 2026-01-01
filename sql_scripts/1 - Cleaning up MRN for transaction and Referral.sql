@@ -35,6 +35,11 @@ GO
 DROP TABLE IF EXISTS [DataCleanup].[dbo].[Ref];
 GO
 
+
+UPDATE [DataCleanup].[dbo].[TransactionsRaw]
+SET PatientNumber = REPLACE(PatientNumber, '.0', '')
+WHERE PatientNumber LIKE '%.0';
+
 -- Step 1b: Create the DailyTransactions table
 --          This table contains financial transaction records from the billing system
 --          Columns include payment amounts, adjustments, and calculated balance fields
@@ -352,6 +357,7 @@ SET PatientNumberUpdated = CASE
     WHEN PatientNumberUpdated = '110' THEN 'SYN-11102'
     WHEN PatientNumberUpdated = '220' THEN '589'
     WHEN PatientNumberUpdated = '240' THEN '611'
+	WHEN PatientNumberUpdated = '860000000000' THEN '70'
 	ELSE PatientNumberUpdated
 END;
 
